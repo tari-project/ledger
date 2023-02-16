@@ -1,0 +1,25 @@
+[package]
+name = "tari"
+version = "0.0.1"
+authors = [""]
+edition = "2021"
+
+
+[dependencies]
+nanos_sdk = { git = "https://github.com/LedgerHQ/ledger-nanos-sdk.git" }
+nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git" }
+curve25519-dalek = { version="3.2.1", default-features = false, features=["u32_backend"]}
+once_cell = {version="1.8.0", default-features = false}
+rand_core = {version = "0.6.4"}
+
+[profile.release]
+opt-level = 's'
+lto = true
+
+[package.metadata.nanos]
+name = "Tari"
+curve = [""]
+flags = "0"
+icon = "key_16x16.gif"
+icon_small = "key_14x14.gif"
+path = [""]
