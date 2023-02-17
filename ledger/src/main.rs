@@ -25,6 +25,7 @@
 
 #[macro_use]
 mod macros;
+mod blake2;
 mod errors;
 mod ristretto_keys;
 mod schnorr;
@@ -98,8 +99,7 @@ extern "C" fn sample_main() {
                 let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
 
                 let k = RistrettoSecretKey::random();
-                let r = RistrettoSecretKey::random();
-                let signature = SchnorrSignature::sign_raw(&k, r, challenge.bytes()).unwrap();
+                let signature = SchnorrSignature::sign_message(&k, challenge.bytes()).unwrap();
                 let public_key = RistrettoPublicKey::from_secret_key(&k);
                 let sig = signature.get_signature().as_bytes();
                 let nonce = signature.get_public_nonce().as_bytes();

@@ -8,6 +8,8 @@ use tari_crypto::{
     ristretto::{RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
     tari_utilities::ByteArray,
 };
+use tari_crypto::hash::blake2::Blake256;
+use digest::{Digest};
 
 fn hidapi() -> &'static HidApi {
     static HIDAPI: Lazy<HidApi> = Lazy::new(|| HidApi::new().expect("unable to get HIDAPI"));
@@ -60,7 +62,13 @@ fn main() {
     let nonce = &result.data()[65..97];
     let nonce = RistrettoPublicKey::from_bytes(nonce).unwrap();
 
-    let signature = RistrettoSchnorr::new(nonce, sig);
-    let result = signature.verify(&public_key, &challenge);
+    let signature = RistrettoSchnorr::new(nonce.clone(), sig);
+    let e = Blake256::default()
+        .chain(&nonce.as_bytes())
+        .chain(&public_key.as_bytes())
+        .chain(&challenge.as_bytes())
+        .finalize();
+    let e = RistrettoSecretKey::from_bytes(&e).unwrap();
+    let result = signature.verify(&public_key, &e);
     println!("sign: {}", result);
 }
