@@ -22,6 +22,7 @@
 
 #![no_std]
 #![no_main]
+#![feature(alloc_error_handler)]
 
 #[macro_use]
 mod macros;
@@ -183,4 +184,27 @@ impl<const N: usize> ArrayString<N> {
     pub fn as_str(&self) -> &str {
         core::str::from_utf8(&self.bytes[..self.len()]).unwrap()
     }
+}
+
+use core::mem::MaybeUninit;
+
+/// Allocator heap size
+const HEAP_SIZE: usize = 1024;
+
+/// Statically allocated heap memory
+static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+
+/// Bind global allocator
+#[global_allocator]
+static HEAP: embedded_alloc::Heap = embedded_alloc::Heap::empty();
+
+/// Error handler for allocation
+#[alloc_error_handler]
+fn oom(_: core::alloc::Layout) -> ! {
+    nanos_sdk::exit_app(250)
+}
+
+/// Initialise allocator
+pub fn init() {
+    unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
 }

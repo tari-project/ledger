@@ -8,6 +8,7 @@
 use core::ops::Add;
 
 use digest::Digest;
+use digest::Update;
 
 use crate::{
     blake2::Blake256,

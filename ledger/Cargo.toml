@@ -8,11 +8,16 @@ edition = "2021"
 [dependencies]
 nanos_sdk = { git = "https://github.com/LedgerHQ/ledger-nanos-sdk.git" }
 nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git" }
-curve25519-dalek = {git = "https://github.com/tari-project/curve25519-dalek", tag = "v4.0.1", default-features = false, features=["u32_backend"] }
+curve25519-dalek = {git = "https://github.com/swvheerden/curve25519-dalek", rev = "c8120bbb67c0c93da45710edae36db98e8036cbf", default-features = false, features = ["precomputed-tables", "alloc"] }
+#tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "076b7a1e5b7caa6dcae4dbdd6f695fdfacd1dd55", default-features = false, features = ["no_std"]}
+
+#bulletproofs_plus = { package = "tari_bulletproofs_plus", git = "https://github.com/swvheerden/bulletproofs-plus", rev = "137f4a6d133694d318bb4b8d991ec3f10b32e968", default-features = false, features = ["no_std"]}
+#bulletproofs = { package = "tari_bulletproofs", git = "https://github.com/swvheerden/bulletproofs", rev = "6cf441b9f7a92207ff941b2513de98b85ba5dfa5", default-features = false, features = ["yoloproofs", "alloc"] }
 once_cell = {version="1.8.0", default-features = false}
-rand_core = {version = "0.6.4"}
-blake2 = {version="0.9.1", default-features = false}
-digest = "0.9.0"
+rand_core = {version = "0.6", features = ["alloc"]}
+blake2 = {version="0.10.6", default-features = false}
+digest = {version= "0.10", default-features = false}
+embedded-alloc = "0.5.0"
 
 [profile.release]
 opt-level = 's'
