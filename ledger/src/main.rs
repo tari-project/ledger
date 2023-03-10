@@ -22,7 +22,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(alloc_error_handler)]
+// #![feature(alloc_error_handler)]
 
 #[macro_use]
 mod macros;
@@ -39,8 +39,8 @@ use nanos_ui::ui;
 use tari_crypto::{
    ristretto::{
         //pedersen::{extended_commitment_factory::ExtendedPedersenCommitmentFactory},
-        //RistrettoPublicKey,
-        RistrettoSchnorr,
+        RistrettoPublicKey,
+        //RistrettoSchnorr,
        // RistrettoSecretKey,
    },
 };
@@ -201,7 +201,7 @@ static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP
 static HEAP: embedded_alloc::Heap = embedded_alloc::Heap::empty();
 
 /// Error handler for allocation
-#[alloc_error_handler]
+// #[alloc_error_handler]
 fn oom(_: core::alloc::Layout) -> ! {
     nanos_sdk::exit_app(250)
 }

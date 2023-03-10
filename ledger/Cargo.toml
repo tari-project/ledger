@@ -9,7 +9,7 @@ edition = "2021"
 nanos_sdk = { git = "https://github.com/LedgerHQ/ledger-nanos-sdk.git" }
 nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git" }
 curve25519-dalek = {git = "https://github.com/swvheerden/curve25519-dalek", rev = "c8120bbb67c0c93da45710edae36db98e8036cbf", default-features = false, features = ["precomputed-tables", "alloc","rand_core"] }
-tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "5addb9ef8799c2264f41a03b3b56a3481c564ddf", default-features = false, features = ["no_std"]}
+tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "c243b874ab7eb60d6ce04dd6a3ad6fe742202428", default-features = false, features = ["no_std"]}
 
 #bulletproofs_plus = { package = "tari_bulletproofs_plus", git = "https://github.com/swvheerden/bulletproofs-plus", rev = "137f4a6d133694d318bb4b8d991ec3f10b32e968", default-features = false, features = ["no_std"]}
 #bulletproofs = { package = "tari_bulletproofs", git = "https://github.com/swvheerden/bulletproofs", rev = "6cf441b9f7a92207ff941b2513de98b85ba5dfa5", default-features = false, features = ["yoloproofs", "alloc"] }

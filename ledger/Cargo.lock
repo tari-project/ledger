@@ -193,7 +193,7 @@ dependencies = [
 [[package]]
 name = "tari_crypto"
 version = "0.16.6"
-source = "git+https://github.com/swvheerden/tari-crypto.git?rev=5addb9ef8799c2264f41a03b3b56a3481c564ddf#5addb9ef8799c2264f41a03b3b56a3481c564ddf"
+source = "git+https://github.com/swvheerden/tari-crypto.git?rev=c243b874ab7eb60d6ce04dd6a3ad6fe742202428#c243b874ab7eb60d6ce04dd6a3ad6fe742202428"
 dependencies = [
  "curve25519-dalek",
 ]
