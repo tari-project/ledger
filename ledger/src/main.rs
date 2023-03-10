@@ -26,20 +26,25 @@
 
 #[macro_use]
 mod macros;
-mod blake2;
-mod errors;
-mod ristretto_keys;
-mod schnorr;
+//mod blake2;
+//mod errors;
+//mod ristretto_keys;
+//mod schnorr;
 
 use core::convert::TryFrom;
 
 use nanos_sdk::{buttons::ButtonEvent, io};
 use nanos_ui::ui;
 
-use crate::{
-    ristretto_keys::{RistrettoPublicKey, RistrettoSecretKey},
-    schnorr::SchnorrSignature,
+use tari_crypto::{
+   ristretto::{
+        //pedersen::{extended_commitment_factory::ExtendedPedersenCommitmentFactory},
+        //RistrettoPublicKey,
+        RistrettoSchnorr,
+       // RistrettoSecretKey,
+   },
 };
+
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 /// App Version parameters
@@ -74,13 +79,6 @@ extern "C" fn sample_main() {
                 display_infos();
             },
             io::Event::Button(ButtonEvent::LeftButtonPress) => {
-                let k = RistrettoSecretKey::random();
-                let r = RistrettoSecretKey::random();
-                // Use sign raw, and bind the nonce and public key manually
-                let e = [0u8; 32];
-                let e_key = RistrettoSecretKey::from_bytes(&e).unwrap();
-                let _s = &r + &e_key * &k;
-                let _sig = SchnorrSignature::sign_raw(&k, r, &e).unwrap();
             },
             io::Event::Button(_) => {},
             io::Event::Command(Instruction::GetVersion) => {
@@ -97,18 +95,22 @@ extern "C" fn sample_main() {
             io::Event::Command(Instruction::Sign) => {
                 // first bytes are instruction details
                 let offset = 5;
+                panic!("pie");
                 let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
 
-                let k = RistrettoSecretKey::random();
-                let signature = SchnorrSignature::sign_message(&k, challenge.bytes()).unwrap();
+               /* let k = RistrettoSecretKey::random();
+                let signature = RistrettoSchnorr::sign_message(&k, challenge.bytes()).unwrap();
                 let public_key = RistrettoPublicKey::from_secret_key(&k);
                 let sig = signature.get_signature().as_bytes();
                 let nonce = signature.get_public_nonce().as_bytes();
+                let spending_key = RistrettoSecretKey::random();
+                let com_factories = ExtendedPedersenCommitmentFactory::default();
+                let commitment = com_factories.commit_value(&spending_key, 50);
 
                 comm.append(&[1]); // version
                 comm.append(public_key.as_bytes());
                 comm.append(sig);
-                comm.append(nonce);
+                comm.append(nonce);*/
                 comm.reply_ok();
             },
             io::Event::Ticker => {},
