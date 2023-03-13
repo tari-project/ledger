@@ -164,7 +164,7 @@ impl RistrettoPublicKey {
 
     /// Generates a new Public key from the given secret key
     pub fn from_secret_key(k: &RistrettoSecretKey) -> RistrettoPublicKey {
-        let pk = &k.0 * &RISTRETTO_BASEPOINT_TABLE;
+        let pk = &k.0 * RISTRETTO_BASEPOINT_TABLE;
         RistrettoPublicKey::new_from_pk(pk)
     }
 
@@ -194,7 +194,7 @@ impl RistrettoPublicKey {
         if bytes.len() != 32 {
             return Err(Error::IncorrectByteLength);
         }
-        let compressed = CompressedRistretto::from_slice(bytes);
+        let compressed = CompressedRistretto::from_slice(bytes).unwrap();
         match RistrettoPublicKey::new_from_compressed(compressed) {
             Some(p) => Ok(p),
             None => Err(Error::ConversionError),

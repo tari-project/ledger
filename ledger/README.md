@@ -17,6 +17,7 @@ brew install armmbed/formulae/arm-none-eabi-gcc
 Copy over target json file (nanosplus, nanos, etc) from: https://github.com/LedgerHQ/ledger-nanos-sdk
 
 to build:
-cargo +nightly build -Zbuild-std --release --target={TARGET}.json
+cargo +nightly build -Zbuild-std=panic_abort,std --release --target={TARGET}.json
 with TARGET = nanosplus, nanos, etc.
-to load: cargo +nightly ledger --load nanosplus
+to load: cargo +nightly ledger --load nanosplus -- -Zbuild-std=panic_abort,std
+
