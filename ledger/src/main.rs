@@ -22,29 +22,31 @@
 
 #![no_std]
 #![no_main]
-// #![feature(alloc_error_handler)]
+#![feature(alloc_error_handler)]
 
-#[macro_use]
-mod macros;
-//mod blake2;
-//mod errors;
-//mod ristretto_keys;
-//mod schnorr;
+// #[macro_use]
+// mod macros;
+// mod blake2;
+// mod errors;
+// mod ristretto_keys;
+// mod schnorr;
 
 use core::convert::TryFrom;
+use tari_crypto::tari_utilities::ByteArray;
 
 use nanos_sdk::{buttons::ButtonEvent, io};
 use nanos_ui::ui;
+use tari_crypto::ristretto::pedersen::commitment_factory::PedersenCommitmentFactory;
 
 use tari_crypto::{
-   ristretto::{
-        //pedersen::{extended_commitment_factory::ExtendedPedersenCommitmentFactory},
+    keys::{PublicKey, SecretKey},
+    ristretto::{
         RistrettoPublicKey,
-        //RistrettoSchnorr,
-       // RistrettoSecretKey,
-   },
+        RistrettoSchnorr,
+        RistrettoSecretKey,
+    },
 };
-
+use tari_crypto::commitment::HomomorphicCommitmentFactory;
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 /// App Version parameters
@@ -78,8 +80,7 @@ extern "C" fn sample_main() {
             io::Event::Button(ButtonEvent::RightButtonRelease) => {
                 display_infos();
             },
-            io::Event::Button(ButtonEvent::LeftButtonPress) => {
-            },
+            io::Event::Button(ButtonEvent::LeftButtonPress) => {},
             io::Event::Button(_) => {},
             io::Event::Command(Instruction::GetVersion) => {
                 let name_bytes = NAME.as_bytes();
@@ -95,22 +96,19 @@ extern "C" fn sample_main() {
             io::Event::Command(Instruction::Sign) => {
                 // first bytes are instruction details
                 let offset = 5;
-                panic!("pie");
                 let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
-
-               /* let k = RistrettoSecretKey::random();
-                let signature = RistrettoSchnorr::sign_message(&k, challenge.bytes()).unwrap();
+                let k = RistrettoSecretKey::random(&mut LedgerRng);
+                let signature = RistrettoSchnorr::sign_message(&k, challenge.bytes(), &mut LedgerRng).unwrap();
                 let public_key = RistrettoPublicKey::from_secret_key(&k);
                 let sig = signature.get_signature().as_bytes();
                 let nonce = signature.get_public_nonce().as_bytes();
-                let spending_key = RistrettoSecretKey::random();
-                let com_factories = ExtendedPedersenCommitmentFactory::default();
-                let commitment = com_factories.commit_value(&spending_key, 50);
+                let com_factories = PedersenCommitmentFactory::default();
+                let commitment = com_factories.commit_value(&k, 50);
 
                 comm.append(&[1]); // version
                 comm.append(public_key.as_bytes());
                 comm.append(sig);
-                comm.append(nonce);*/
+                comm.append(nonce);
                 comm.reply_ok();
             },
             io::Event::Ticker => {},
@@ -190,6 +188,8 @@ impl<const N: usize> ArrayString<N> {
 
 use core::mem::MaybeUninit;
 
+use nanos_sdk::random::LedgerRng;
+use critical_section::RawRestoreState;
 /// Allocator heap size
 const HEAP_SIZE: usize = 1024;
 
@@ -201,7 +201,7 @@ static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP
 static HEAP: embedded_alloc::Heap = embedded_alloc::Heap::empty();
 
 /// Error handler for allocation
-// #[alloc_error_handler]
+#[alloc_error_handler]
 fn oom(_: core::alloc::Layout) -> ! {
     nanos_sdk::exit_app(250)
 }
@@ -209,4 +209,17 @@ fn oom(_: core::alloc::Layout) -> ! {
 /// Initialise allocator
 pub fn init() {
     unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+}
+
+struct MyCriticalSection;
+critical_section::set_impl!(MyCriticalSection);
+
+unsafe impl critical_section::Impl for MyCriticalSection {
+    unsafe fn acquire() -> RawRestoreState {
+        // nothing, it's all good, don't worry bout it
+    }
+
+    unsafe fn release(_token: RawRestoreState) {
+        // nothing, it's all good, don't worry bout it
+    }
 }
