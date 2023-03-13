@@ -507,6 +507,7 @@ dependencies = [
 name = "legder_integration"
 version = "0.1.0"
 dependencies = [
+ "digest",
  "futures",
  "ledger-transport 0.10.0 (git+https://github.com/Zondax/ledger-rs)",
  "ledger-transport-hid",

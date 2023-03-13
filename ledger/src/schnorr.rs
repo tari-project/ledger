@@ -7,7 +7,10 @@
 
 use core::ops::Add;
 
+use digest::Digest;
+
 use crate::{
+    blake2::Blake256,
     errors::*,
     ristretto_keys::{RistrettoPublicKey, RistrettoSecretKey},
 };
@@ -51,6 +54,43 @@ impl SchnorrSignature {
         let ek = e * secret;
         let s = ek + nonce;
         Ok(Self::new(public_nonce, s))
+    }
+
+    /// Signs a message with the given secret key.
+    ///
+    /// This method correctly binds a nonce and the public key to the signature challenge, using domain-separated
+    /// hashing. The hasher is also opinionated in the sense that Blake2b 256-bit digest is always used.
+    ///
+    /// it is possible to customise the challenge by using [`construct_domain_separated_challenge`] and [`sign_raw`]
+    /// yourself, or even use [`sign_raw`] using a completely custom challenge.
+    pub fn sign_message(secret: &RistrettoSecretKey, message: &[u8]) -> Result<Self, Error> {
+        let nonce = RistrettoSecretKey::random();
+        Self::sign_with_nonce_and_message(secret, nonce, message)
+    }
+
+    /// Signs a message with the given secret key and provided nonce.
+    ///
+    /// This method correctly binds the nonce and the public key to the signature challenge, using domain-separated
+    /// hashing. The hasher is also opinionated in the sense that Blake2b 256-bit digest is always used.
+    ///
+    /// ** Important **: It is the caller's responsibility to ensure that the nonce is unique. This API tries to
+    /// prevent this by taking ownership of the nonce, which means that the caller has to explicitly clone the nonce
+    /// in order to re-use it, which is a small deterrent, but better than nothing.
+    ///
+    /// To delegate nonce handling to the callee, use [`Self::sign_message`] instead.
+    pub fn sign_with_nonce_and_message(
+        secret: &RistrettoSecretKey,
+        nonce: RistrettoSecretKey,
+        message: &[u8],
+    ) -> Result<Self, Error> {
+        let public_nonce = RistrettoPublicKey::from_secret_key(&nonce);
+        let public_key = RistrettoPublicKey::from_secret_key(secret);
+        let e = Blake256::default()
+            .chain(&public_nonce.as_bytes())
+            .chain(&public_key.as_bytes())
+            .chain(&message)
+            .finalize();
+        Self::sign_raw(secret, nonce, &e)
     }
 
     /// Returns a reference to the `s` signature component.

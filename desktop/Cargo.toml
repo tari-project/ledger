@@ -16,5 +16,5 @@ ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs" }
 futures = "0.3"
 tari_crypto = { git = "https://github.com/tari-project/tari-crypto.git", tag = "v0.16.6" }
 rand = "0.7.3"
-
+digest = "0.9.0"
 tari_utilities = { git = "https://github.com/tari-project/tari_utilities.git", tag = "v0.4.10"}
