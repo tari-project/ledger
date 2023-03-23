@@ -31,22 +31,18 @@
 // mod ristretto_keys;
 // mod schnorr;
 
+extern crate alloc;
 use core::convert::TryFrom;
-use tari_crypto::tari_utilities::ByteArray;
 
-use nanos_sdk::{buttons::ButtonEvent, io};
+use nanos_sdk::{buttons::ButtonEvent, ecc, io, random::LedgerRng};
 use nanos_ui::ui;
-use tari_crypto::ristretto::pedersen::commitment_factory::PedersenCommitmentFactory;
-
 use tari_crypto::{
+    commitment::HomomorphicCommitmentFactory,
     keys::{PublicKey, SecretKey},
-    ristretto::{
-        RistrettoPublicKey,
-        RistrettoSchnorr,
-        RistrettoSecretKey,
-    },
+    ristretto::{RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
+    tari_utilities::ByteArray,
 };
-use tari_crypto::commitment::HomomorphicCommitmentFactory;
+use tari_crypto::ristretto::pedersen::extended_commitment_factory::ExtendedPedersenCommitmentFactory;
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 /// App Version parameters
@@ -56,6 +52,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 enum Instruction {
     GetVersion,
     Sign,
+    Commitment,
+    BPData,
 }
 
 impl TryFrom<u8> for Instruction {
@@ -65,14 +63,17 @@ impl TryFrom<u8> for Instruction {
         match v {
             0x01 => Ok(Self::GetVersion),
             0x02 => Ok(Self::Sign),
+            0x03 => Ok(Self::Commitment),
+            0x04 => Ok(Self::BPData),
             _ => Err(()),
         }
     }
 }
-
+static BIP32_PATH: [u32; 2] = ecc::make_bip32_path(b"m/10016'/0");
 #[no_mangle]
 extern "C" fn sample_main() {
     let mut comm = io::Comm::new();
+    init();
     ui::SingleMessage::new("Tari test app").show();
     loop {
         match comm.next_event() {
@@ -95,20 +96,77 @@ extern "C" fn sample_main() {
             },
             io::Event::Command(Instruction::Sign) => {
                 // first bytes are instruction details
+
                 let offset = 5;
                 let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
                 let k = RistrettoSecretKey::random(&mut LedgerRng);
-                let signature = RistrettoSchnorr::sign_message(&k, challenge.bytes(), &mut LedgerRng).unwrap();
+                let n = RistrettoSecretKey::random(&mut LedgerRng);
+                let signature = RistrettoSchnorr::sign_raw(&k, n, challenge.bytes()).unwrap();
                 let public_key = RistrettoPublicKey::from_secret_key(&k);
                 let sig = signature.get_signature().as_bytes();
                 let nonce = signature.get_public_nonce().as_bytes();
-                let com_factories = PedersenCommitmentFactory::default();
-                let commitment = com_factories.commit_value(&k, 50);
+                // let com_factories = PedersenCommitmentFactory::default();
+                // let commitment = com_factories.commit_value(&k, 50);
 
                 comm.append(&[1]); // version
                 comm.append(public_key.as_bytes());
                 comm.append(sig);
                 comm.append(nonce);
+                comm.reply_ok();
+            },
+            io::Event::Command(Instruction::Commitment) => {
+                // first bytes are instruction details
+                let offset = 5;
+                let mut value_bytes = [0u8; 8];
+                value_bytes.clone_from_slice(comm.get(offset, offset + 8));
+                let value = u64::from_le_bytes(value_bytes);
+                // Encryption/decryption key for import and export.
+                //let mut key = [0u8; 64];
+                ui::SingleMessage::new("1").show_and_wait();
+                // let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+                //let path: [u32; 2] = ecc::make_bip32_path(b"m/10016'/0");
+                let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+                ui::SingleMessage::new("2").show_and_wait();
+                let mut raw_key = [0u8; 32];
+                nanos_sdk::ecc::bip32_derive(CurvesId::Secp256k1, &path, &mut raw_key).unwrap();
+                // unsafe {
+                //     os_perso_derive_node_bip32(
+                //         CurvesId::Secp256k1 as u8,
+                //         (&path).as_ptr(),
+                //         (&path).len() as u32,
+                //         (&mut key).as_mut_ptr(),
+                //         core::ptr::null_mut(),
+                //     )
+                // };
+
+                ui::SingleMessage::new("3").show_and_wait();
+
+                //let k = RistrettoSecretKey::random(&mut LedgerRng);
+                // let k = RistrettoSecretKey::from_bytes(&key).unwrap();
+                // let com_factories = ExtendedPedersenCommitmentFactory::default();
+                // let commitment = com_factories.commit_value(&k, value);
+                comm.append(&[1]); // version
+                comm.append(raw_key.as_bytes());
+                comm.reply_ok();
+            },
+            io::Event::Command(Instruction::BPData) => {
+                // first bytes are instruction details
+                let offset = 5;
+                let mut value_bytes = [0u8; 8];
+                value_bytes.clone_from_slice(comm.get(offset, offset + 8));
+                let value = u64::from_le_bytes(value_bytes);
+                // Encryption/decryption key for import and export.
+                let mut key = [0u8; 32];
+                let path: [u32; 2] = ecc::make_bip32_path(b"m/10016'/0");
+
+                ecc::bip32_derive(ecc::CurvesId::Curve25519, &path, &mut key).unwrap();
+
+                //let k = RistrettoSecretKey::random(&mut LedgerRng);
+                let k = RistrettoSecretKey::from_bytes(&key).unwrap();
+                let com_factories = ExtendedPedersenCommitmentFactory::default();
+                let commitment = com_factories.commit_value(&k, value);
+                comm.append(&[1]); // version
+                comm.append(k.as_bytes());
                 comm.reply_ok();
             },
             io::Event::Ticker => {},
@@ -188,10 +246,12 @@ impl<const N: usize> ArrayString<N> {
 
 use core::mem::MaybeUninit;
 
-use nanos_sdk::random::LedgerRng;
 use critical_section::RawRestoreState;
+use nanos_sdk::bindings::os_perso_derive_node_bip32;
+use nanos_sdk::ecc::CurvesId;
+
 /// Allocator heap size
-const HEAP_SIZE: usize = 1024;
+const HEAP_SIZE: usize = 1024 * 26;
 
 /// Statically allocated heap memory
 static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
@@ -203,6 +263,8 @@ static HEAP: embedded_alloc::Heap = embedded_alloc::Heap::empty();
 /// Error handler for allocation
 #[alloc_error_handler]
 fn oom(_: core::alloc::Layout) -> ! {
+    ui::SingleMessage::new("oom").show_and_wait();
+
     nanos_sdk::exit_app(250)
 }
 

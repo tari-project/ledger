@@ -19,5 +19,5 @@ Copy over target json file (nanosplus, nanos, etc) from: https://github.com/Ledg
 to build:
 cargo +nightly build -Zbuild-std=panic_abort,std --release --target={TARGET}.json
 with TARGET = nanosplus, nanos, etc.
-to load: cargo +nightly ledger --load nanosplus -- -Zbuild-std=panic_abort,std
+to load: cargo +nightly ledger --load nanosplus -- -Zbuild-std=std
 

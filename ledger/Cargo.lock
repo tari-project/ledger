@@ -386,10 +386,13 @@ name = "tari"
 version = "0.0.1"
 dependencies = [
  "critical-section",
+ "curve25519-dalek",
+ "digest",
  "embedded-alloc",
  "nanos_sdk",
  "nanos_ui",
  "rand_core",
+ "sha3",
  "tari_crypto",
 ]
 
@@ -413,7 +416,7 @@ dependencies = [
 [[package]]
 name = "tari_crypto"
 version = "0.16.6"
-source = "git+https://github.com/swvheerden/tari-crypto.git?rev=b534ae944d152150a6748e530e93f3a2a764776d#b534ae944d152150a6748e530e93f3a2a764776d"
+source = "git+https://github.com/swvheerden/tari-crypto.git?rev=78f65e49412f13bc316644f0fb4451af508b9a9c#78f65e49412f13bc316644f0fb4451af508b9a9c"
 dependencies = [
  "blake2",
  "curve25519-dalek",
