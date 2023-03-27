@@ -32,8 +32,9 @@ panic = "abort"
 
 [package.metadata.nanos]
 name = "Tari"
-curve = [""]
+curve = ["secp256k1", "ed25519"]
 flags = "0"
 icon = "key_16x16.gif"
 icon_small = "key_14x14.gif"
-path = [""]
+path = ["44'/1022'","m/5261654'","m/44'"]
+api_level = "1"

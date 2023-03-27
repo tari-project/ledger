@@ -34,15 +34,20 @@
 extern crate alloc;
 use core::convert::TryFrom;
 
+use curve25519_dalek::Scalar;
 use nanos_sdk::{buttons::ButtonEvent, ecc, io, random::LedgerRng};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
     keys::{PublicKey, SecretKey},
-    ristretto::{RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
+    ristretto::{
+        pedersen::extended_commitment_factory::ExtendedPedersenCommitmentFactory,
+        RistrettoPublicKey,
+        RistrettoSchnorr,
+        RistrettoSecretKey,
+    },
     tari_utilities::ByteArray,
 };
-use tari_crypto::ristretto::pedersen::extended_commitment_factory::ExtendedPedersenCommitmentFactory;
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 /// App Version parameters
@@ -69,7 +74,6 @@ impl TryFrom<u8> for Instruction {
         }
     }
 }
-static BIP32_PATH: [u32; 2] = ecc::make_bip32_path(b"m/10016'/0");
 #[no_mangle]
 extern "C" fn sample_main() {
     let mut comm = io::Comm::new();
@@ -120,53 +124,49 @@ extern "C" fn sample_main() {
                 let mut value_bytes = [0u8; 8];
                 value_bytes.clone_from_slice(comm.get(offset, offset + 8));
                 let value = u64::from_le_bytes(value_bytes);
-                // Encryption/decryption key for import and export.
-                //let mut key = [0u8; 64];
-                ui::SingleMessage::new("1").show_and_wait();
-                // let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-                //let path: [u32; 2] = ecc::make_bip32_path(b"m/10016'/0");
                 let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-                ui::SingleMessage::new("2").show_and_wait();
                 let mut raw_key = [0u8; 32];
-                nanos_sdk::ecc::bip32_derive(CurvesId::Secp256k1, &path, &mut raw_key).unwrap();
-                // unsafe {
-                //     os_perso_derive_node_bip32(
-                //         CurvesId::Secp256k1 as u8,
-                //         (&path).as_ptr(),
-                //         (&path).len() as u32,
-                //         (&mut key).as_mut_ptr(),
-                //         core::ptr::null_mut(),
-                //     )
-                // };
-
-                ui::SingleMessage::new("3").show_and_wait();
-
-                //let k = RistrettoSecretKey::random(&mut LedgerRng);
-                // let k = RistrettoSecretKey::from_bytes(&key).unwrap();
-                // let com_factories = ExtendedPedersenCommitmentFactory::default();
-                // let commitment = com_factories.commit_value(&k, value);
+                unsafe {
+                    os_perso_derive_node_bip32(
+                        CurvesId::Ed25519 as u8,
+                        (&path).as_ptr(),
+                        (&path).len() as u32,
+                        (&mut raw_key).as_mut_ptr(),
+                        core::ptr::null_mut(),
+                    )
+                };
+                let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+                let com_factories = ExtendedPedersenCommitmentFactory::default();
+                let commitment = com_factories.commit_value(&k, value);
                 comm.append(&[1]); // version
-                comm.append(raw_key.as_bytes());
+                comm.append(commitment.as_bytes());
+                // comm.append(pkey.as_ref());
                 comm.reply_ok();
             },
             io::Event::Command(Instruction::BPData) => {
                 // first bytes are instruction details
                 let offset = 5;
-                let mut value_bytes = [0u8; 8];
-                value_bytes.clone_from_slice(comm.get(offset, offset + 8));
-                let value = u64::from_le_bytes(value_bytes);
-                // Encryption/decryption key for import and export.
-                let mut key = [0u8; 32];
-                let path: [u32; 2] = ecc::make_bip32_path(b"m/10016'/0");
-
-                ecc::bip32_derive(ecc::CurvesId::Curve25519, &path, &mut key).unwrap();
-
-                //let k = RistrettoSecretKey::random(&mut LedgerRng);
-                let k = RistrettoSecretKey::from_bytes(&key).unwrap();
-                let com_factories = ExtendedPedersenCommitmentFactory::default();
-                let commitment = com_factories.commit_value(&k, value);
+                let mut scalar_bytes = [0u8; 32];
+                scalar_bytes.clone_from_slice(comm.get(offset, offset + 32));
+                let scalar = Scalar::from_bits(scalar_bytes);
+                let path: [u32; 5] = ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+                let mut raw_key = [0u8; 32];
+                unsafe {
+                    os_perso_derive_node_bip32(
+                        CurvesId::Ed25519 as u8,
+                        (&path).as_ptr(),
+                        (&path).len() as u32,
+                        (&mut raw_key).as_mut_ptr(),
+                        core::ptr::null_mut(),
+                    )
+                };
+                let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+                let mut k_scalar_bytes = [0u8; 32];
+                k_scalar_bytes.clone_from_slice(k.as_bytes());
+                let k_scalar = Scalar::from_bits(k_scalar_bytes);
+                let blinded = k_scalar * &scalar;
                 comm.append(&[1]); // version
-                comm.append(k.as_bytes());
+                comm.append(blinded.as_bytes());
                 comm.reply_ok();
             },
             io::Event::Ticker => {},
@@ -247,8 +247,10 @@ impl<const N: usize> ArrayString<N> {
 use core::mem::MaybeUninit;
 
 use critical_section::RawRestoreState;
-use nanos_sdk::bindings::os_perso_derive_node_bip32;
-use nanos_sdk::ecc::CurvesId;
+use nanos_sdk::{
+    bindings::os_perso_derive_node_bip32,
+    ecc::{CurvesId},
+};
 
 /// Allocator heap size
 const HEAP_SIZE: usize = 1024 * 26;
