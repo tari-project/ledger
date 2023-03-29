@@ -33,6 +33,7 @@
 
 extern crate alloc;
 use core::{convert::TryFrom, marker::PhantomData};
+use digest::Update;
 
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
@@ -43,7 +44,7 @@ use nanos_sdk::{buttons::ButtonEvent, ecc, io, random::LedgerRng};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
-    keys::{PublicKey, SecretKey},
+    keys::{PublicKey},
     ristretto::{
         pedersen::extended_commitment_factory::ExtendedPedersenCommitmentFactory,
         RistrettoPublicKey,
@@ -111,16 +112,39 @@ extern "C" fn sample_main() {
 
                 let offset = 5;
                 let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
-                let k = RistrettoSecretKey::random(&mut LedgerRng);
-                let n = RistrettoSecretKey::random(&mut LedgerRng);
-                let signature = RistrettoSchnorr::sign_raw(&k, n, challenge.bytes()).unwrap();
+                // THIS IS BROKEN
+                // let k = RistrettoSecretKey::random(&mut LedgerRng);
+                // let n = RistrettoSecretKey::random(&mut LedgerRng);
+                let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+                let mut raw_key = [0u8; 32];
+                unsafe {
+                    os_perso_derive_node_bip32(
+                        CurvesId::Ed25519 as u8,
+                        (&path).as_ptr(),
+                        (&path).len() as u32,
+                        (&mut raw_key).as_mut_ptr(),
+                        core::ptr::null_mut(),
+                    )
+                };
+                let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+                let n = Blake256::new().chain(k.as_bytes()).finalize().to_vec();
+                let n = RistrettoSecretKey::from_bytes(&n).unwrap();
                 let public_key = RistrettoPublicKey::from_secret_key(&k);
+                let public_nonce = RistrettoPublicKey::from_secret_key(&n);
+                // let e = Blake256::new()
+                //     .chain(public_key.as_bytes())
+                //     .chain(public_nonce.as_bytes())
+                //     .chain(challenge.bytes())
+                //     .finalize().to_vec();
+                let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
+                    .chain(&public_key)
+                    .chain(&public_nonce)
+                    .chain(challenge.bytes())
+                    .finalize();
+                let signature = RistrettoSchnorr::sign_raw(&k, n, &hash).unwrap();
                 let sig = signature.get_signature().as_bytes();
                 let nonce = signature.get_public_nonce().as_bytes();
 
-                let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
-                    .chain(&public_key)
-                    .finalize();
 
                 comm.append(&[1]); // version
                 comm.append(public_key.as_bytes());
