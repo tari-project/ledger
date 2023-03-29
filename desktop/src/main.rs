@@ -1,15 +1,15 @@
+use digest::Digest;
 use ledger_transport::APDUCommand;
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
 use once_cell::sync::Lazy;
 use rand::rngs::OsRng;
 use tari_crypto::{
+    hash::blake2::Blake256,
     keys::SecretKey,
-    ristretto::{RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
-    tari_utilities::ByteArray,
+    ristretto::{pedersen::PedersenCommitment, RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
+    tari_utilities::{hex::Hex, ByteArray},
 };
-use tari_crypto::hash::blake2::Blake256;
-use digest::{Digest};
 
 fn hidapi() -> &'static HidApi {
     static HIDAPI: Lazy<HidApi> = Lazy::new(|| HidApi::new().expect("unable to get HIDAPI"));
@@ -71,4 +71,20 @@ fn main() {
     let e = RistrettoSecretKey::from_bytes(&e).unwrap();
     let result = signature.verify(&public_key, &e);
     println!("sign: {}", result);
+
+    let value: u64 = 60;
+    let value_bytes = value.to_le_bytes();
+    let command3 = APDUCommand {
+        cla: 0x80,
+        ins: 0x03,
+        p1: 0x00,
+        p2: 0x00,
+        data: value_bytes.as_bytes().clone(),
+    };
+    let result = ledger.exchange(&command3).unwrap();
+
+    let commitment = &result.data()[1..33];
+    let commitment = PedersenCommitment::from_bytes(commitment).unwrap();
+    println!("commitment: {}", commitment.to_hex());
+
 }
