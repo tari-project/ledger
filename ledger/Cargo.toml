@@ -9,7 +9,7 @@ edition = "2021"
 nanos_sdk = { git = "https://github.com/LedgerHQ/ledger-nanos-sdk.git" }
 nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git" }
 curve25519-dalek = {git = "https://github.com/swvheerden/curve25519-dalek", rev = "c8120bbb67c0c93da45710edae36db98e8036cbf", default-features = false}
-tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "78f65e49412f13bc316644f0fb4451af508b9a9c", default-features = false, features = ["no_std"]}
+tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "41a5c4b8b29b0cab5c14efbed40204b1dcb5775b", default-features = false, features = ["no_std", "borsh_ser"]}
 #bulletproofs_plus = { package = "tari_bulletproofs_plus", git = "https://github.com/swvheerden/bulletproofs-plus", rev = "240a840473f9f8d9946e21ebf6d510e8f80450cf", default-features = false}
 digest = { version = "0.10", default-features = false }
 
@@ -23,6 +23,7 @@ rand_core = {version = "0.6", default-features = false}
 #blake2 = {version="0.10.6", default-features = false}
 #digest = {version= "0.10", default-features = false}
 embedded-alloc = "0.5.0"
+borsh = { version = "0.9.3", default-features = false }
 
 critical-section = { version = "1.1.1" }
 [profile.release]

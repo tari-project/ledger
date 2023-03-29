@@ -32,8 +32,12 @@
 // mod schnorr;
 
 extern crate alloc;
-use core::convert::TryFrom;
+use core::{convert::TryFrom, marker::PhantomData};
 
+use borsh::{
+    maybestd::io::{Result as BorshResult, Write},
+    BorshSerialize,
+};
 use curve25519_dalek::Scalar;
 use nanos_sdk::{buttons::ButtonEvent, ecc, io, random::LedgerRng};
 use nanos_ui::ui;
@@ -49,6 +53,7 @@ use tari_crypto::{
     tari_utilities::ByteArray,
 };
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
+use tari_crypto::{hash::blake2::Blake256, hash_domain, hashing::DomainSeparation};
 
 /// App Version parameters
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -74,6 +79,9 @@ impl TryFrom<u8> for Instruction {
         }
     }
 }
+
+hash_domain!(TransactionHashDomain, "com.tari.base_layer.core.transactions", 0);
+
 #[no_mangle]
 extern "C" fn sample_main() {
     let mut comm = io::Comm::new();
@@ -109,8 +117,10 @@ extern "C" fn sample_main() {
                 let public_key = RistrettoPublicKey::from_secret_key(&k);
                 let sig = signature.get_signature().as_bytes();
                 let nonce = signature.get_public_nonce().as_bytes();
-                // let com_factories = PedersenCommitmentFactory::default();
-                // let commitment = com_factories.commit_value(&k, 50);
+
+                let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
+                    .chain(&public_key)
+                    .finalize();
 
                 comm.append(&[1]); // version
                 comm.append(public_key.as_bytes());
@@ -171,6 +181,62 @@ extern "C" fn sample_main() {
             },
             io::Event::Ticker => {},
         }
+    }
+}
+pub struct DomainSeparatedConsensusHasher<M>(PhantomData<M>);
+
+impl<M: DomainSeparation> DomainSeparatedConsensusHasher<M> {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(label: &'static str) -> ConsensusHasher<Blake256> {
+        let mut digest = Blake256::new();
+        M::add_domain_separation_tag(&mut digest, label);
+        ConsensusHasher::from_digest(digest)
+    }
+}
+
+use digest::{consts::U32, Digest};
+#[derive(Clone)]
+pub struct ConsensusHasher<D> {
+    writer: WriteHashWrapper<D>,
+}
+
+impl<D: Digest> ConsensusHasher<D> {
+    fn from_digest(digest: D) -> Self {
+        Self {
+            writer: WriteHashWrapper(digest),
+        }
+    }
+}
+
+impl<D> ConsensusHasher<D>
+where D: Digest<OutputSize = U32>
+{
+    pub fn finalize(self) -> [u8; 32] {
+        self.writer.0.finalize().into()
+    }
+
+    pub fn update_consensus_encode<T: BorshSerialize>(&mut self, data: &T) {
+        BorshSerialize::serialize(data, &mut self.writer)
+            .expect("Incorrect implementation of BorshSerialize encountered. Implementations MUST be infallible.");
+    }
+
+    pub fn chain<T: BorshSerialize>(mut self, data: &T) -> Self {
+        self.update_consensus_encode(data);
+        self
+    }
+}
+
+#[derive(Clone)]
+struct WriteHashWrapper<D>(D);
+
+impl<D: Digest> Write for WriteHashWrapper<D> {
+    fn write(&mut self, buf: &[u8]) -> BorshResult<usize> {
+        self.0.update(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> BorshResult<()> {
+        Ok(())
     }
 }
 
@@ -247,10 +313,7 @@ impl<const N: usize> ArrayString<N> {
 use core::mem::MaybeUninit;
 
 use critical_section::RawRestoreState;
-use nanos_sdk::{
-    bindings::os_perso_derive_node_bip32,
-    ecc::{CurvesId},
-};
+use nanos_sdk::{bindings::os_perso_derive_node_bip32, ecc::CurvesId};
 
 /// Allocator heap size
 const HEAP_SIZE: usize = 1024 * 26;

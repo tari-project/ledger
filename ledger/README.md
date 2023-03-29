@@ -14,10 +14,9 @@ Lastly install the ARM GCC toolchain: `arm-none-eabi-gcc` for your OS. We are us
 ```
 brew install armmbed/formulae/arm-none-eabi-gcc
 ```
-Copy over target json file (nanosplus, nanos, etc) from: https://github.com/LedgerHQ/ledger-nanos-sdk
 
 to build:
-cargo +nightly build -Zbuild-std=panic_abort,std --release --target={TARGET}.json
+cargo +nightly ledger build {TARGET} -- -Zbuild-std=std,alloc
 with TARGET = nanosplus, nanos, etc.
-to load: cargo +nightly ledger --load nanosplus -- -Zbuild-std=std
+to load: cargo +nightly ledger build nanosplus --load -- -Zbuild-std=std,alloc
 
