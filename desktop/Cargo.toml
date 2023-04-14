@@ -14,7 +14,10 @@ ledger-zondax-generic = { git = "https://github.com/Zondax/ledger-rs" }
 ledger-transport = { git = "https://github.com/Zondax/ledger-rs" }
 ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs" }
 futures = "0.3"
-tari_crypto = { git = "https://github.com/tari-project/tari-crypto.git", tag = "v0.16.6" }
-rand = "0.7.3"
-
-tari_utilities = { git = "https://github.com/tari-project/tari_utilities.git", tag = "v0.4.10"}
+tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "41a5c4b8b29b0cab5c14efbed40204b1dcb5775b"}
+rand = "0.8.5"
+borsh = { version = "0.9.3", default-features = false }
+curve25519-dalek = {git = "https://github.com/swvheerden/curve25519-dalek", rev = "c8120bbb67c0c93da45710edae36db98e8036cbf", default-features = false,features = [  "alloc", "rand_core", "precomputed-tables"]  }
+digest = "0.10.6"
+tari_utilities = { git = "https://github.com/swvheerden/tari_utilities.git", rev = "be307079df67a69a8c8e658accaf0ce806a2e48f", default-features = false }
+bulletproofs_plus = { package = "tari_bulletproofs_plus", git = "https://github.com/swvheerden/bulletproofs-plus", rev = "f5650b09d72655602ca0aea65819353410850e45", default-features = false}
