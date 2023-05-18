@@ -13,12 +13,22 @@ cargo ledger setup
 Next up we need install the supporting Python libraries from Ledger to control Ledger devices, [LedgerCTL](https://github.com/LedgerHQ/ledgerctl). This we do with:
 ```
 pip3 install --upgrade protobuf setuptools ecdsa
-pip3 install ledgerwallet
+pip3 install git+https://github.com/LedgerHQ/ledgerctl
 ```
 
 Lastly install the ARM GCC toolchain: `arm-none-eabi-gcc` for your OS. We are using MacOS, so we can use brew with:
 ```
 brew install armmbed/formulae/arm-none-eabi-gcc
+```
+
+Install a custom certificate on the device to help with development. Start the device in recovery mode (varies per device)
+- Nano S Plus: Hold the left button while turning on, and follow on screen instructions
+- Nano S: Hold the right button while turning on
+
+Once in recovery mode run the following where <NAME> is simply the name of the CA. It can be anything:
+
+```
+ledgerctl install-ca <NAME>
 ```
 
 ### Building
