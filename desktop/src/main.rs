@@ -6,7 +6,7 @@ use borsh::{
 };
 use bulletproofs_plus::{range_proof::MemLimitedRangeProof, range_statement::RangeStatement};
 use curve25519_dalek::{ristretto::RistrettoPoint, Scalar};
-use digest::{Digest, Update};
+use digest::{Digest};
 use ledger_transport::APDUCommand;
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
@@ -53,7 +53,13 @@ fn main() {
     let ledger = TransportNativeHID::new(hidapi()).expect("Could not get a device");
 
     // use device info command that works in the dashboard
-    let result = futures::executor::block_on(Tari::send_chunks(&ledger, command, &message)).unwrap();
+    let result = match futures::executor::block_on(Tari::send_chunks(&ledger, command, &message)) {
+        Ok(result) => result,
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        },
+    };
     let data_len = result.data()[1] as usize;
     let name = &result.data()[2..data_len + 2];
     let name = std::str::from_utf8(name).unwrap();

@@ -134,6 +134,18 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.0.0-rc.1"
+source = "git+https://github.com/dalek-cryptography/curve25519-dalek?rev=99c0520aa79401b69fb51d38172cd58c6a256cfb#99c0520aa79401b69fb51d38172cd58c6a256cfb"
+dependencies = [
+ "cfg-if",
+ "fiat-crypto",
+ "packed_simd_2",
+ "platforms",
+ "subtle",
+]
+
+[[package]]
+name = "curve25519-dalek"
+version = "4.0.0-rc.1"
 source = "git+https://github.com/swvheerden/curve25519-dalek?rev=c8120bbb67c0c93da45710edae36db98e8036cbf#c8120bbb67c0c93da45710edae36db98e8036cbf"
 dependencies = [
  "cfg-if",
@@ -478,7 +490,7 @@ version = "0.0.1"
 dependencies = [
  "borsh",
  "critical-section",
- "curve25519-dalek",
+ "curve25519-dalek 4.0.0-rc.1 (git+https://github.com/dalek-cryptography/curve25519-dalek?rev=99c0520aa79401b69fb51d38172cd58c6a256cfb)",
  "digest",
  "embedded-alloc",
  "nanos_sdk",
@@ -495,7 +507,7 @@ source = "git+https://github.com/swvheerden/bulletproofs-plus?rev=f5650b09d72655
 dependencies = [
  "blake2",
  "byteorder",
- "curve25519-dalek",
+ "curve25519-dalek 4.0.0-rc.1 (git+https://github.com/swvheerden/curve25519-dalek?rev=c8120bbb67c0c93da45710edae36db98e8036cbf)",
  "derive_more",
  "digest",
  "lazy_static",
@@ -512,7 +524,7 @@ source = "git+https://github.com/swvheerden/tari-crypto.git?rev=41a5c4b8b29b0cab
 dependencies = [
  "blake2",
  "borsh",
- "curve25519-dalek",
+ "curve25519-dalek 4.0.0-rc.1 (git+https://github.com/swvheerden/curve25519-dalek?rev=c8120bbb67c0c93da45710edae36db98e8036cbf)",
  "digest",
  "lazy_static",
  "log",
