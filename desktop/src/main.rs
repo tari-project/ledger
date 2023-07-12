@@ -4,29 +4,18 @@ use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
-use bulletproofs_plus::{range_proof::MemLimitedRangeProof, range_statement::RangeStatement};
-use curve25519_dalek::{ristretto::RistrettoPoint, Scalar};
-use digest::{Digest};
+use digest::Digest;
 use ledger_transport::APDUCommand;
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
 use once_cell::sync::Lazy;
 use rand::rngs::OsRng;
-use tari_crypto::extended_range_proof::ExtendedRangeProofService;
-
 use tari_crypto::{
-    extended_range_proof::{AggregatedPublicStatement, Statement},
     hash::blake2::Blake256,
     hash_domain,
     hashing::DomainSeparation,
     keys::SecretKey,
-    ristretto::{
-        bulletproofs_plus::BulletproofsPlusService,
-        pedersen::{extended_commitment_factory::ExtendedPedersenCommitmentFactory, PedersenCommitment},
-        RistrettoPublicKey,
-        RistrettoSchnorr,
-        RistrettoSecretKey,
-    },
+    ristretto::{pedersen::PedersenCommitment, RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
     tari_utilities::{hex::Hex, ByteArray},
 };
 
@@ -63,12 +52,13 @@ fn main() {
     let data_len = result.data()[1] as usize;
     let name = &result.data()[2..data_len + 2];
     let name = std::str::from_utf8(name).unwrap();
+    println!();
     println!("name: {}", name);
     let package_len = result.data()[data_len + 2] as usize;
     let package = &result.data()[data_len + 3..data_len + package_len + 3];
     let package = std::str::from_utf8(package).unwrap();
     println!("package version: {}", package);
-    println!(" ");
+    println!();
 
     let challenge = RistrettoSecretKey::random(&mut OsRng);
     let command2 = APDUCommand {
@@ -90,11 +80,6 @@ fn main() {
     let nonce = RistrettoPublicKey::from_bytes(nonce).unwrap();
 
     let signature = RistrettoSchnorr::new(nonce.clone(), sig);
-    // let e = Blake256::new()
-    //     .chain(&public_key.as_bytes())
-    //     .chain(&nonce.as_bytes())
-    //     .chain(&challenge.as_bytes())
-    //     .finalize().to_vec();
     let mut challenge_bytes = [0u8; 32];
     challenge_bytes.clone_from_slice(challenge.as_bytes());
     let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
@@ -125,53 +110,20 @@ fn main() {
     let commitment = &result.data()[1..33];
     let commitment = PedersenCommitment::from_bytes(commitment).unwrap();
     println!("commitment: {}", commitment.to_hex());
+    println!();
 
-    let statement = Statement {
-        commitment,
-        minimum_value_promise: 0,
-    };
-    let agg_statement = AggregatedPublicStatement {
-        statements: vec![statement],
-    };
-    let (lim_rp, range_statement) = create_lim_rp(&agg_statement, value);
-
-    let y_scalar = lim_rp.y_pow_const.clone();
-    let bytes = y_scalar.as_bytes().to_vec();
-    let command4 = APDUCommand {
+    let command5 = APDUCommand {
         cla: 0x80,
         ins: 0x04,
         p1: 0x00,
         p2: 0x00,
-        data: bytes,
+        data: vec![0],
     };
-    let result = ledger.exchange(&command4).unwrap();
-
-    let mut scalar_bytes = [0u8; 32];
-    scalar_bytes.clone_from_slice(&result.data()[1..33]);
-    let combined_scalar = Scalar::from_bits(scalar_bytes);
-
-    let rp = lim_rp
-        .prove(vec![vec![combined_scalar]], &range_statement, &mut OsRng)
-        .unwrap()
-        .to_bytes();
-    let rp_plus_service = BulletproofsPlusService::init(64, 1, ExtendedPedersenCommitmentFactory::default()).unwrap();
-    let bp_result = rp_plus_service.verify_batch(vec![&rp], vec![&agg_statement], &mut OsRng);
-    println!("BP result: {:?}", bp_result);
-}
-
-fn create_lim_rp(
-    agg_statement: &AggregatedPublicStatement<RistrettoPublicKey>,
-    value: u64,
-) -> (MemLimitedRangeProof<RistrettoPoint>, RangeStatement<RistrettoPoint>) {
-    let rp_plus_service = BulletproofsPlusService::init(64, 1, ExtendedPedersenCommitmentFactory::default()).unwrap();
-
-    let public_range_statements = rp_plus_service.prepare_public_range_statements(vec![agg_statement]);
-    let range_statment = public_range_statements[0].clone();
-    (
-        MemLimitedRangeProof::<RistrettoPoint>::init("Tari Bulletproofs+", &range_statment, &vec![value], &mut OsRng)
-            .unwrap(),
-        range_statment,
-    )
+    match ledger.exchange(&command5) {
+        Ok(result) => println!("Ledger device disconnected ({:?})", result),
+        Err(e) => println!("Ledger device disconnected ({})", e),
+    };
+    println!();
 }
 
 pub struct DomainSeparatedConsensusHasher<M>(PhantomData<M>);
