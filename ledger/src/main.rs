@@ -32,7 +32,7 @@
 // mod schnorr;
 
 extern crate alloc;
-use core::{convert::TryFrom, marker::PhantomData};
+use core::{marker::PhantomData};
 use digest::Update;
 
 use borsh::{
@@ -40,7 +40,7 @@ use borsh::{
     BorshSerialize,
 };
 use curve25519_dalek::Scalar;
-use nanos_sdk::{buttons::ButtonEvent, ecc, io, random::LedgerRng};
+use nanos_sdk::{buttons::ButtonEvent, ecc, io};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
@@ -65,23 +65,26 @@ enum Instruction {
     Sign,
     Commitment,
     BPData,
+    BadInstruction,
+    Exit
 }
 
-impl TryFrom<u8> for Instruction {
-    type Error = ();
-
-    fn try_from(v: u8) -> Result<Self, Self::Error> {
-        match v {
-            0x01 => Ok(Self::GetVersion),
-            0x02 => Ok(Self::Sign),
-            0x03 => Ok(Self::Commitment),
-            0x04 => Ok(Self::BPData),
-            _ => Err(()),
+impl From<io::ApduHeader> for Instruction {
+    fn from(header: io::ApduHeader) -> Instruction {
+        match header.ins {
+            0x01 => Self::GetVersion,
+            0x02 => Self::Sign,
+            0x03 => Self::Commitment,
+            0x04 => Self::BPData,
+            0x05 => Self::Exit,
+            _ => Self::BadInstruction,
         }
     }
 }
 
 hash_domain!(TransactionHashDomain, "com.tari.base_layer.core.transactions", 0);
+
+use nanos_sdk::io::{StatusWords, ApduHeader, Reply};
 
 #[no_mangle]
 extern "C" fn sample_main() {
@@ -89,124 +92,144 @@ extern "C" fn sample_main() {
     init();
     ui::SingleMessage::new("Tari test app").show();
     loop {
-        match comm.next_event() {
+        let event = comm.next_event::<ApduHeader>();
+        match event {
             io::Event::Button(ButtonEvent::BothButtonsRelease) => nanos_sdk::exit_app(0),
             io::Event::Button(ButtonEvent::RightButtonRelease) => {
                 display_infos();
             },
             io::Event::Button(ButtonEvent::LeftButtonPress) => {},
             io::Event::Button(_) => {},
-            io::Event::Command(Instruction::GetVersion) => {
-                let name_bytes = NAME.as_bytes();
-                let version_bytes = VERSION.as_bytes();
-                comm.append(&[1]); // Format
-                comm.append(&[name_bytes.len() as u8]);
-                comm.append(name_bytes);
-                comm.append(&[version_bytes.len() as u8]);
-                comm.append(version_bytes);
-                comm.append(&[0]); // No flags
-                comm.reply_ok();
+            io::Event::Command(apdu_header) => match handle_apdu(&mut comm, apdu_header.into()) {
+                Ok(()) => comm.reply_ok(),
+                Err(sw) => comm.reply(sw),
             },
-            io::Event::Command(Instruction::Sign) => {
-                // first bytes are instruction details
-
-                let offset = 5;
-                let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
-                // THIS IS BROKEN
-                // let k = RistrettoSecretKey::random(&mut LedgerRng);
-                // let n = RistrettoSecretKey::random(&mut LedgerRng);
-                let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-                let mut raw_key = [0u8; 32];
-                unsafe {
-                    os_perso_derive_node_bip32(
-                        CurvesId::Ed25519 as u8,
-                        (&path).as_ptr(),
-                        (&path).len() as u32,
-                        (&mut raw_key).as_mut_ptr(),
-                        core::ptr::null_mut(),
-                    )
-                };
-                let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
-                let n = Blake256::new().chain(k.as_bytes()).finalize().to_vec();
-                let n = RistrettoSecretKey::from_bytes(&n).unwrap();
-                let public_key = RistrettoPublicKey::from_secret_key(&k);
-                let public_nonce = RistrettoPublicKey::from_secret_key(&n);
-                // let e = Blake256::new()
-                //     .chain(public_key.as_bytes())
-                //     .chain(public_nonce.as_bytes())
-                //     .chain(challenge.bytes())
-                //     .finalize().to_vec();
-                let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
-                    .chain(&public_key)
-                    .chain(&public_nonce)
-                    .chain(challenge.bytes())
-                    .finalize();
-                let signature = RistrettoSchnorr::sign_raw(&k, n, &hash).unwrap();
-                let sig = signature.get_signature().as_bytes();
-                let nonce = signature.get_public_nonce().as_bytes();
-
-
-                comm.append(&[1]); // version
-                comm.append(public_key.as_bytes());
-                comm.append(sig);
-                comm.append(nonce);
-                comm.reply_ok();
-            },
-            io::Event::Command(Instruction::Commitment) => {
-                // first bytes are instruction details
-                let offset = 5;
-                let mut value_bytes = [0u8; 8];
-                value_bytes.clone_from_slice(comm.get(offset, offset + 8));
-                let value = u64::from_le_bytes(value_bytes);
-                let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-                let mut raw_key = [0u8; 32];
-                unsafe {
-                    os_perso_derive_node_bip32(
-                        CurvesId::Ed25519 as u8,
-                        (&path).as_ptr(),
-                        (&path).len() as u32,
-                        (&mut raw_key).as_mut_ptr(),
-                        core::ptr::null_mut(),
-                    )
-                };
-                let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
-                let com_factories = ExtendedPedersenCommitmentFactory::default();
-                let commitment = com_factories.commit_value(&k, value);
-                comm.append(&[1]); // version
-                comm.append(commitment.as_bytes());
-                // comm.append(pkey.as_ref());
-                comm.reply_ok();
-            },
-            io::Event::Command(Instruction::BPData) => {
-                // first bytes are instruction details
-                let offset = 5;
-                let mut scalar_bytes = [0u8; 32];
-                scalar_bytes.clone_from_slice(comm.get(offset, offset + 32));
-                let scalar = Scalar::from_bits(scalar_bytes);
-                let path: [u32; 5] = ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-                let mut raw_key = [0u8; 32];
-                unsafe {
-                    os_perso_derive_node_bip32(
-                        CurvesId::Ed25519 as u8,
-                        (&path).as_ptr(),
-                        (&path).len() as u32,
-                        (&mut raw_key).as_mut_ptr(),
-                        core::ptr::null_mut(),
-                    )
-                };
-                let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
-                let mut k_scalar_bytes = [0u8; 32];
-                k_scalar_bytes.clone_from_slice(k.as_bytes());
-                let k_scalar = Scalar::from_bits(k_scalar_bytes);
-                let blinded = k_scalar * &scalar;
-                comm.append(&[1]); // version
-                comm.append(blinded.as_bytes());
-                comm.reply_ok();
-            },
-            io::Event::Ticker => {},
+            io::Event::Ticker => {}
         }
     }
 }
+
+fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Reply> {
+    if comm.rx == 0 {
+        return Err(io::StatusWords::NothingReceived.into());
+    }
+
+    match instruction {
+        Instruction::GetVersion => {
+            let name_bytes = NAME.as_bytes();
+            let version_bytes = VERSION.as_bytes();
+            comm.append(&[1]); // Format
+            comm.append(&[name_bytes.len() as u8]);
+            comm.append(name_bytes);
+            comm.append(&[version_bytes.len() as u8]);
+            comm.append(version_bytes);
+            comm.append(&[0]); // No flags
+            comm.reply_ok();
+        },
+        Instruction::BPData => {
+            // first bytes are instruction details
+            let offset = 5;
+            let mut scalar_bytes = [0u8; 32];
+            scalar_bytes.clone_from_slice(comm.get(offset, offset + 32));
+            let scalar = Scalar::from_bytes_mod_order(scalar_bytes);
+            let path: [u32; 5] = ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+            let mut raw_key = [0u8; 32];
+            unsafe {
+                os_perso_derive_node_bip32(
+                    CurvesId::Ed25519 as u8,
+                    (&path).as_ptr(),
+                    (&path).len() as u32,
+                    (&mut raw_key).as_mut_ptr(),
+                    core::ptr::null_mut(),
+                )
+            };
+            let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+            let mut k_scalar_bytes = [0u8; 32];
+            k_scalar_bytes.clone_from_slice(k.as_bytes());
+            let k_scalar = Scalar::from_bytes_mod_order(k_scalar_bytes);
+            let blinded = k_scalar * &scalar;
+            comm.append(&[1]); // version
+            comm.append(blinded.as_bytes());
+            comm.reply_ok();
+        },
+        Instruction::Sign => {
+            // first bytes are instruction details
+
+            let offset = 5;
+            let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
+            // THIS IS BROKEN
+            // let k = RistrettoSecretKey::random(&mut LedgerRng);
+            // let n = RistrettoSecretKey::random(&mut LedgerRng);
+            let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+            let mut raw_key = [0u8; 32];
+            unsafe {
+                os_perso_derive_node_bip32(
+                    CurvesId::Ed25519 as u8,
+                    (&path).as_ptr(),
+                    (&path).len() as u32,
+                    (&mut raw_key).as_mut_ptr(),
+                    core::ptr::null_mut(),
+                )
+            };
+            let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+            let n = Blake256::new().chain(k.as_bytes()).finalize().to_vec();
+            let n = RistrettoSecretKey::from_bytes(&n).unwrap();
+            let public_key = RistrettoPublicKey::from_secret_key(&k);
+            let public_nonce = RistrettoPublicKey::from_secret_key(&n);
+            // let e = Blake256::new()
+            //     .chain(public_key.as_bytes())
+            //     .chain(public_nonce.as_bytes())
+            //     .chain(challenge.bytes())
+            //     .finalize().to_vec();
+            let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
+                .chain(&public_key)
+                .chain(&public_nonce)
+                .chain(challenge.bytes())
+                .finalize();
+            let signature = RistrettoSchnorr::sign_raw(&k, n, &hash).unwrap();
+            let sig = signature.get_signature().as_bytes();
+            let nonce = signature.get_public_nonce().as_bytes();
+
+
+            comm.append(&[1]); // version
+            comm.append(public_key.as_bytes());
+            comm.append(sig);
+            comm.append(nonce);
+            comm.reply_ok();
+        },
+        Instruction::Commitment => {
+            // first bytes are instruction details
+            let offset = 5;
+            let mut value_bytes = [0u8; 8];
+            value_bytes.clone_from_slice(comm.get(offset, offset + 8));
+            let value = u64::from_le_bytes(value_bytes);
+            let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
+            let mut raw_key = [0u8; 32];
+            unsafe {
+                os_perso_derive_node_bip32(
+                    CurvesId::Ed25519 as u8,
+                    (&path).as_ptr(),
+                    (&path).len() as u32,
+                    (&mut raw_key).as_mut_ptr(),
+                    core::ptr::null_mut(),
+                )
+            };
+            let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+            let com_factories = ExtendedPedersenCommitmentFactory::default();
+            let commitment = com_factories.commit_value(&k, value);
+            comm.append(&[1]); // version
+            comm.append(commitment.as_bytes());
+            // comm.append(pkey.as_ref());
+            comm.reply_ok();
+        },
+        Instruction::BadInstruction => {
+            return Err(StatusWords::BadIns.into());
+        }
+        Instruction::Exit => nanos_sdk::exit_app(0),
+    }
+    Ok(())
+}
+
 pub struct DomainSeparatedConsensusHasher<M>(PhantomData<M>);
 
 impl<M: DomainSeparation> DomainSeparatedConsensusHasher<M> {

@@ -6,29 +6,22 @@ edition = "2021"
 
 
 [dependencies]
+# lock to rev as soon as this is fixed: https://github.com/rust-lang/rust/issues/98666
 nanos_sdk = { git = "https://github.com/LedgerHQ/ledger-nanos-sdk.git" }
-nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git" }
-curve25519-dalek = {git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "99c0520aa79401b69fb51d38172cd58c6a256cfb", default-features = false}
-tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "41a5c4b8b29b0cab5c14efbed40204b1dcb5775b", default-features = false, features = ["no_std", "borsh_ser"]}
-#bulletproofs_plus = { package = "tari_bulletproofs_plus", git = "https://github.com/swvheerden/bulletproofs-plus", rev = "240a840473f9f8d9946e21ebf6d510e8f80450cf", default-features = false}
-digest = { version = "0.10", default-features = false }
+nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git", rev = "6a7c4a3eb41ee0b09c8fd4dcc5be4f3a1f5d7b45" }
 
-#bulletproofs_plus = { package = "tari_bulletproofs_plus", git = "https://github.com/swvheerden/bulletproofs-plus", rev = "240a840473f9f8d9946e21ebf6d510e8f80450cf", default-features = false, features = ["no_std"]}
-#bulletproofs = { package = "tari_bulletproofs", git = "https://github.com/swvheerden/bulletproofs", rev = "6cf441b9f7a92207ff941b2513de98b85ba5dfa5", default-features = false, features = ["yoloproofs", "alloc"] }
-#lazy_static = {git = "https://github.com/rust-lang-nursery/lazy-static.rs.git", rev= "e83d664", default-features = false, features = ["spin_no_std"]}
-sha3 = { version = "0.10.6", default-features = false }
-#tari_utilities = { git = "https://github.com/swvheerden/tari_utilities.git", rev = "be307079df67a69a8c8e658accaf0ce806a2e48f", default-features = false }
-#once_cell = {version="1.8.0", default-features = false}
+curve25519-dalek = { package = "tari-curve25519-dalek", git = "https://github.com/tari-project/curve25519-dalek", rev = "d727ce3c055c5d99980ffa9ffe43c6c8e934dca3", default-features = false}
+tari_crypto = { git = "https://github.com/hansieodendaal/tari-crypto.git",  rev = "44dc834a6fba72e2cc41b02402fbc6102f67c350", default-features = false, features = ["no_std", "borsh_ser"]}
+
+digest = { version = "0.10", default-features = false }
 rand_core = {version = "0.6", default-features = false}
-#blake2 = {version="0.10.6", default-features = false}
-#digest = {version= "0.10", default-features = false}
 embedded-alloc = "0.5.0"
-borsh = { version = "0.9.3", default-features = false }
+borsh = { version = "0.10", default-features = false }
 
 critical-section = { version = "1.1.1" }
 [profile.release]
 opt-level = 's'
-lto = true
+lto = "fat" # same as `true`
 panic = "abort"
 
 [package.metadata.nanos]
