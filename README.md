@@ -62,7 +62,8 @@ cargo ledger build {TARGET} -- "-Zbuild-std=std,alloc"
 ```
 where TARGET = nanosplus, nanos, etc.
 
-To load, run 
+To load, run from a Python shell (`pip3 --version` should work) and select both buttons on the Ledger device when 
+prompted:
 ```
 cargo ledger build {TARGET} --load -- "-Zbuild-std=std,alloc"
 ```
@@ -93,13 +94,14 @@ You should see a similar output, just with different hex values:
 name: tari
 package version: 0.0.1
 
-challange as secretkey: 0418b75810642317922e543ce8560e0536e5b8cb838d0878f8fd64b7c6dc1507
-signature: a08a36e36e4b9129347feb7ff9c94fbde3c830c295ba640d32a97b109fa48300
+challange as secretkey: 260dda4598fcfa2bc8b2744f3fc3d65ea29258aeb7a0d93babc483ca436e8503
+signature: 46b66cefc6c3f9f5acae802c223d1e9684fe3dc9581967cb2e34797ef632fc0f
 public key: dad90c3bd61ac63b51181b7f56c3b17afbe33ad2143eba3b5ba3755a5284710c
 sign: true
 
 commitment: 3a587a548f9076818dd4d2a328f2b6d9905c08f7aa786135b90826eac4a1134e
-BP result: Ok(())
+
+Ledger device disconnected (APDUAnswer { data: [144, 0], retcode: 36864 })
 ```
 
 Press both buttons on the Ledger again to exit the application.

@@ -10,8 +10,8 @@ edition = "2021"
 nanos_sdk = { git = "https://github.com/LedgerHQ/ledger-nanos-sdk.git" }
 nanos_ui = { git = "https://github.com/LedgerHQ/ledger-nanos-ui.git", rev = "6a7c4a3eb41ee0b09c8fd4dcc5be4f3a1f5d7b45" }
 
-curve25519-dalek = { package = "tari-curve25519-dalek", git = "https://github.com/tari-project/curve25519-dalek", rev = "d727ce3c055c5d99980ffa9ffe43c6c8e934dca3", default-features = false}
-tari_crypto = { git = "https://github.com/hansieodendaal/tari-crypto.git",  rev = "44dc834a6fba72e2cc41b02402fbc6102f67c350", default-features = false, features = ["no_std", "borsh_ser"]}
+curve25519-dalek = { package = "tari-curve25519-dalek", git = "https://github.com/tari-project/curve25519-dalek", version = "4.0.3", default-features = false}
+tari_crypto = { git = "https://github.com/hansieodendaal/tari-crypto.git",  rev = "d6dd58b4657b2b8003ddac328eccd5b9f2597e79", default-features = false, features = ["no_std", "borsh_ser"]}
 
 digest = { version = "0.10", default-features = false }
 rand_core = {version = "0.6", default-features = false}

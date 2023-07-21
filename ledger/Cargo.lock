@@ -134,7 +134,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.0"
-source = "git+https://github.com/tari-project/curve25519-dalek?rev=d727ce3c055c5d99980ffa9ffe43c6c8e934dca3#d727ce3c055c5d99980ffa9ffe43c6c8e934dca3"
+source = "git+https://github.com/tari-project/curve25519-dalek#0d4a29b7123c8d4a6494ff08598f7697f0bca125"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -458,8 +458,8 @@ dependencies = [
 
 [[package]]
 name = "tari-curve25519-dalek"
-version = "4.0.0-tarirc.3"
-source = "git+https://github.com/tari-project/curve25519-dalek?rev=d727ce3c055c5d99980ffa9ffe43c6c8e934dca3#d727ce3c055c5d99980ffa9ffe43c6c8e934dca3"
+version = "4.0.3"
+source = "git+https://github.com/tari-project/curve25519-dalek#0d4a29b7123c8d4a6494ff08598f7697f0bca125"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -475,7 +475,7 @@ dependencies = [
 [[package]]
 name = "tari_crypto"
 version = "0.17.0"
-source = "git+https://github.com/hansieodendaal/tari-crypto.git?rev=44dc834a6fba72e2cc41b02402fbc6102f67c350#44dc834a6fba72e2cc41b02402fbc6102f67c350"
+source = "git+https://github.com/hansieodendaal/tari-crypto.git?rev=d6dd58b4657b2b8003ddac328eccd5b9f2597e79#d6dd58b4657b2b8003ddac328eccd5b9f2597e79"
 dependencies = [
  "blake2",
  "borsh",
@@ -494,8 +494,8 @@ dependencies = [
 
 [[package]]
 name = "tari_utilities"
-version = "0.4.10"
-source = "git+https://github.com/swvheerden/tari_utilities.git?rev=0aadb45a798709d16b65c0e304ee571a156a6c64#0aadb45a798709d16b65c0e304ee571a156a6c64"
+version = "0.5.0"
+source = "git+https://github.com/tari-project/tari_utilities.git#468db3ecd40e16e5e74a99f1d1485f0a576e8ab5"
 dependencies = [
  "generic-array",
  "snafu",

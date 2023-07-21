@@ -24,27 +24,19 @@
 #![no_main]
 #![feature(alloc_error_handler)]
 
-// #[macro_use]
-// mod macros;
-// mod blake2;
-// mod errors;
-// mod ristretto_keys;
-// mod schnorr;
-
 extern crate alloc;
-use core::{marker::PhantomData};
-use digest::Update;
+use core::marker::PhantomData;
 
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
-use curve25519_dalek::Scalar;
-use nanos_sdk::{buttons::ButtonEvent, ecc, io};
+use digest::Update;
+use nanos_sdk::{buttons::ButtonEvent, io};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
-    keys::{PublicKey},
+    keys::PublicKey,
     ristretto::{
         pedersen::extended_commitment_factory::ExtendedPedersenCommitmentFactory,
         RistrettoPublicKey,
@@ -64,9 +56,8 @@ enum Instruction {
     GetVersion,
     Sign,
     Commitment,
-    BPData,
     BadInstruction,
-    Exit
+    Exit,
 }
 
 impl From<io::ApduHeader> for Instruction {
@@ -75,8 +66,7 @@ impl From<io::ApduHeader> for Instruction {
             0x01 => Self::GetVersion,
             0x02 => Self::Sign,
             0x03 => Self::Commitment,
-            0x04 => Self::BPData,
-            0x05 => Self::Exit,
+            0x04 => Self::Exit,
             _ => Self::BadInstruction,
         }
     }
@@ -84,7 +74,7 @@ impl From<io::ApduHeader> for Instruction {
 
 hash_domain!(TransactionHashDomain, "com.tari.base_layer.core.transactions", 0);
 
-use nanos_sdk::io::{StatusWords, ApduHeader, Reply};
+use nanos_sdk::io::{ApduHeader, Reply, StatusWords};
 
 #[no_mangle]
 extern "C" fn sample_main() {
@@ -104,7 +94,7 @@ extern "C" fn sample_main() {
                 Ok(()) => comm.reply_ok(),
                 Err(sw) => comm.reply(sw),
             },
-            io::Event::Ticker => {}
+            io::Event::Ticker => {},
         }
     }
 }
@@ -124,32 +114,6 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             comm.append(&[version_bytes.len() as u8]);
             comm.append(version_bytes);
             comm.append(&[0]); // No flags
-            comm.reply_ok();
-        },
-        Instruction::BPData => {
-            // first bytes are instruction details
-            let offset = 5;
-            let mut scalar_bytes = [0u8; 32];
-            scalar_bytes.clone_from_slice(comm.get(offset, offset + 32));
-            let scalar = Scalar::from_bytes_mod_order(scalar_bytes);
-            let path: [u32; 5] = ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-            let mut raw_key = [0u8; 32];
-            unsafe {
-                os_perso_derive_node_bip32(
-                    CurvesId::Ed25519 as u8,
-                    (&path).as_ptr(),
-                    (&path).len() as u32,
-                    (&mut raw_key).as_mut_ptr(),
-                    core::ptr::null_mut(),
-                )
-            };
-            let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
-            let mut k_scalar_bytes = [0u8; 32];
-            k_scalar_bytes.clone_from_slice(k.as_bytes());
-            let k_scalar = Scalar::from_bytes_mod_order(k_scalar_bytes);
-            let blinded = k_scalar * &scalar;
-            comm.append(&[1]); // version
-            comm.append(blinded.as_bytes());
             comm.reply_ok();
         },
         Instruction::Sign => {
@@ -190,7 +154,6 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let sig = signature.get_signature().as_bytes();
             let nonce = signature.get_public_nonce().as_bytes();
 
-
             comm.append(&[1]); // version
             comm.append(public_key.as_bytes());
             comm.append(sig);
@@ -224,8 +187,11 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
         },
         Instruction::BadInstruction => {
             return Err(StatusWords::BadIns.into());
-        }
-        Instruction::Exit => nanos_sdk::exit_app(0),
+        },
+        Instruction::Exit => {
+            comm.reply_ok();
+            nanos_sdk::exit_app(0)
+        },
     }
     Ok(())
 }
