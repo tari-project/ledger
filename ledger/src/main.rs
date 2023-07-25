@@ -46,7 +46,12 @@ use tari_crypto::{
     tari_utilities::ByteArray,
 };
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
+
 use tari_crypto::{hash::blake2::Blake256, hash_domain, hashing::DomainSeparation};
+
+use crate::alloc::{
+    string::{String, ToString},
+};
 
 /// App Version parameters
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -56,8 +61,9 @@ enum Instruction {
     GetVersion,
     Sign,
     Commitment,
-    BadInstruction,
+    GetPublicKey,
     Exit,
+    BadInstruction,
 }
 
 impl From<io::ApduHeader> for Instruction {
@@ -66,7 +72,8 @@ impl From<io::ApduHeader> for Instruction {
             0x01 => Self::GetVersion,
             0x02 => Self::Sign,
             0x03 => Self::Commitment,
-            0x04 => Self::Exit,
+            0x04 => Self::GetPublicKey,
+            0x05 => Self::Exit,
             _ => Self::BadInstruction,
         }
     }
@@ -99,6 +106,49 @@ extern "C" fn sample_main() {
     }
 }
 
+fn u64_to_string(number: u64) -> String {
+    let mut buffer = [0u8; 20]; // Maximum length for a 64-bit integer (including null terminator)
+    let mut pos = 0;
+
+    if number == 0 {
+        buffer[pos] = b'0';
+        pos += 1;
+    } else {
+        let mut num = number;
+
+        let mut digits = [0u8; 20];
+        let mut num_digits = 0;
+
+        while num > 0 {
+            digits[num_digits] = b'0' + (num % 10) as u8;
+            num /= 10;
+            num_digits += 1;
+        }
+
+        while num_digits > 0 {
+            num_digits -= 1;
+            buffer[pos] = digits[num_digits];
+            pos += 1;
+        }
+    }
+
+    String::from_utf8_lossy(&buffer[..pos]).to_string()
+}
+
+fn get_raw_key(path: [u32; 5]) -> [u8; 32] {
+    let mut raw_key = [0u8; 32];
+    unsafe {
+        os_perso_derive_node_bip32(
+            CurvesId::Ed25519 as u8,
+            (&path).as_ptr(),
+            (&path).len() as u32,
+            (&mut raw_key).as_mut_ptr(),
+            core::ptr::null_mut(),
+        )
+    };
+    raw_key
+}
+
 fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Reply> {
     if comm.rx == 0 {
         return Err(io::StatusWords::NothingReceived.into());
@@ -117,34 +167,17 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             comm.reply_ok();
         },
         Instruction::Sign => {
-            // first bytes are instruction details
-
+            // first 5 bytes are instruction details
             let offset = 5;
             let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
-            // THIS IS BROKEN
-            // let k = RistrettoSecretKey::random(&mut LedgerRng);
-            // let n = RistrettoSecretKey::random(&mut LedgerRng);
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-            let mut raw_key = [0u8; 32];
-            unsafe {
-                os_perso_derive_node_bip32(
-                    CurvesId::Ed25519 as u8,
-                    (&path).as_ptr(),
-                    (&path).len() as u32,
-                    (&mut raw_key).as_mut_ptr(),
-                    core::ptr::null_mut(),
-                )
-            };
+
+            let raw_key = get_raw_key(path);
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let n = Blake256::new().chain(k.as_bytes()).finalize().to_vec();
             let n = RistrettoSecretKey::from_bytes(&n).unwrap();
             let public_key = RistrettoPublicKey::from_secret_key(&k);
             let public_nonce = RistrettoPublicKey::from_secret_key(&n);
-            // let e = Blake256::new()
-            //     .chain(public_key.as_bytes())
-            //     .chain(public_nonce.as_bytes())
-            //     .chain(challenge.bytes())
-            //     .finalize().to_vec();
             let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
                 .chain(&public_key)
                 .chain(&public_nonce)
@@ -161,28 +194,39 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             comm.reply_ok();
         },
         Instruction::Commitment => {
-            // first bytes are instruction details
+            // first 5 bytes are instruction details
             let offset = 5;
             let mut value_bytes = [0u8; 8];
             value_bytes.clone_from_slice(comm.get(offset, offset + 8));
             let value = u64::from_le_bytes(value_bytes);
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
-            let mut raw_key = [0u8; 32];
-            unsafe {
-                os_perso_derive_node_bip32(
-                    CurvesId::Ed25519 as u8,
-                    (&path).as_ptr(),
-                    (&path).len() as u32,
-                    (&mut raw_key).as_mut_ptr(),
-                    core::ptr::null_mut(),
-                )
-            };
+
+            let raw_key = get_raw_key(path);
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let com_factories = ExtendedPedersenCommitmentFactory::default();
             let commitment = com_factories.commit_value(&k, value);
             comm.append(&[1]); // version
             comm.append(commitment.as_bytes());
-            // comm.append(pkey.as_ref());
+            comm.reply_ok();
+        },
+        Instruction::GetPublicKey => {
+            // first 5 bytes are instruction details
+            let offset = 5;
+            let mut address_index = [0u8; 8];
+            address_index.clone_from_slice(comm.get(offset, offset + 8));
+            let address_index_u64 = u64::from_le_bytes(address_index);
+            let index = u64_to_string(address_index_u64);
+
+            let mut bip32_path = "m/44'/535348'/0'/0/".to_string();
+            bip32_path.push_str(&index);
+            ui::SingleMessage::new(&bip32_path).show();
+            let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(bip32_path.as_bytes());
+
+            let raw_key = get_raw_key(path);
+            let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+            let pk = RistrettoPublicKey::from_secret_key(&k);
+            comm.append(&[1]); // version
+            comm.append(pk.as_bytes());
             comm.reply_ok();
         },
         Instruction::BadInstruction => {
