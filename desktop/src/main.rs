@@ -31,9 +31,10 @@ impl App for Tari {
 hash_domain!(TransactionHashDomain, "com.tari.base_layer.core.transactions", 0);
 
 fn main() {
+    // GetVersion
     let command = APDUCommand {
         cla: 0x80,
-        ins: 0x01,
+        ins: 0x01, // GetVersion
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
@@ -60,10 +61,11 @@ fn main() {
     println!("package version: {}", package);
     println!();
 
+    // Sign
     let challenge = RistrettoSecretKey::random(&mut OsRng);
     let command2 = APDUCommand {
         cla: 0x80,
-        ins: 0x02,
+        ins: 0x02, // Sign
         p1: 0x00,
         p2: 0x00,
         data: challenge.as_bytes().clone(),
@@ -88,19 +90,20 @@ fn main() {
         .chain(&challenge_bytes)
         .finalize();
     let e = RistrettoSecretKey::from_bytes(&hash).unwrap();
-    println!("challange as secretkey: {}", e.to_hex());
-    println!("signature: {}", signature.get_signature().to_hex());
+    println!("challenge:  {}", e.to_hex());
+    println!("signature:  {}", signature.get_signature().to_hex());
     println!("public key: {}", public_key.to_hex());
 
     let result = signature.verify(&public_key, &e);
-    println!("sign: {}", result);
+    println!("sign:       {}", result);
     println!(" ");
 
+    // Commitment
     let value: u64 = 60;
     let value_bytes = value.to_le_bytes();
     let command3 = APDUCommand {
         cla: 0x80,
-        ins: 0x03,
+        ins: 0x03, // Commitment
         p1: 0x00,
         p2: 0x00,
         data: value_bytes.as_bytes().clone(),
@@ -112,9 +115,34 @@ fn main() {
     println!("commitment: {}", commitment.to_hex());
     println!();
 
+    // GetPublicKey
+    for i in 0..10 {
+        let address_index = (i as u64).to_le_bytes();
+        let bip32_path = "path:       m/44'/535348'/0'/0/".to_owned() + &u64::from_le_bytes(address_index).to_string();
+        println!("{}", bip32_path);
+
+        let command4 = APDUCommand {
+            cla: 0x80,
+            ins: 0x04, // GetPublicKey
+            p1: 0x00,
+            p2: 0x00,
+            data: address_index.as_bytes().clone(),
+        };
+        let result = ledger.exchange(&command4).unwrap();
+
+        if result.data().len() < 33 {
+            println!("Error: no data!");
+        } else {
+            let public_key = RistrettoPublicKey::from_bytes(&result.data()[1..33]).unwrap();
+            println!("public_key: {}", public_key.to_hex());
+        }
+    }
+    println!();
+
+    // Exit
     let command5 = APDUCommand {
         cla: 0x80,
-        ins: 0x04,
+        ins: 0x05, // Exit
         p1: 0x00,
         p2: 0x00,
         data: vec![0],

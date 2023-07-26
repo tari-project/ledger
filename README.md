@@ -94,12 +94,33 @@ You should see a similar output, just with different hex values:
 name: tari
 package version: 0.0.1
 
-challange as secretkey: 260dda4598fcfa2bc8b2744f3fc3d65ea29258aeb7a0d93babc483ca436e8503
-signature: 46b66cefc6c3f9f5acae802c223d1e9684fe3dc9581967cb2e34797ef632fc0f
+challenge:  907427e1444d8fb652f3d8a580b5ad9b630938b3f05041781efd643f5d5c6a0c
+signature:  584d7c2c8ee2f08568635553cccd13d10f3a1345ef07142f58dd1216c0eb8203
 public key: dad90c3bd61ac63b51181b7f56c3b17afbe33ad2143eba3b5ba3755a5284710c
-sign: true
+sign:       true
 
 commitment: 3a587a548f9076818dd4d2a328f2b6d9905c08f7aa786135b90826eac4a1134e
+
+path:       m/44'/535348'/0'/0/0
+public_key: dad90c3bd61ac63b51181b7f56c3b17afbe33ad2143eba3b5ba3755a5284710c
+path:       m/44'/535348'/0'/0/1
+public_key: 1cec04609602115212fd60fd94a91c6f870d0d7dd9196f1e5d7dcc178a45ac31
+path:       m/44'/535348'/0'/0/2
+public_key: f8a7fc373821fe111056c5ef9b56b8b09e16b4ab870051dd7a1fd9f93e510b77
+path:       m/44'/535348'/0'/0/3
+public_key: 061c33e40b423ed96eae0d4cea89f3716ddd40c48aa8050ccf89f701667b4579
+path:       m/44'/535348'/0'/0/4
+public_key: d0e2fd4e8a2ac58113c91d9ec17c2b780718eb20dfaa8bd3e88006aee59f4a5f
+path:       m/44'/535348'/0'/0/5
+public_key: be38fa70d498d6092c84272d9aafcd291a80f61b6b0a075ed1f8f98fa9288c3b
+path:       m/44'/535348'/0'/0/6
+public_key: c8cf60ea96f4585fb399c41dab3b44c528a74bca0d20b95e0752e08c7d61f012
+path:       m/44'/535348'/0'/0/7
+public_key: 26d4be20928e2380be6ceb331012343159eb853bfe478cf82631779ebedd360d
+path:       m/44'/535348'/0'/0/8
+public_key: 68b53190bbda74d6f91d38f56e4c1fa3dd4dda600274153007554f62c787ab6b
+path:       m/44'/535348'/0'/0/9
+public_key: 70a143730591525176312c9555dec97b7ab543ae8a95f7d8a69eeaad43f54540
 
 Ledger device disconnected (APDUAnswer { data: [144, 0], retcode: 36864 })
 ```
