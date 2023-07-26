@@ -1,4 +1,5 @@
 use core::marker::PhantomData;
+use std::{thread::sleep, time::Duration};
 
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
@@ -14,7 +15,7 @@ use tari_crypto::{
     hash::blake2::Blake256,
     hash_domain,
     hashing::DomainSeparation,
-    keys::SecretKey,
+    keys::{PublicKey, SecretKey},
     ristretto::{pedersen::PedersenCommitment, RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
     tari_utilities::{hex::Hex, ByteArray},
 };
@@ -62,6 +63,7 @@ fn main() {
     println!();
 
     // Sign
+    sleep(Duration::from_millis(2000));
     let challenge = RistrettoSecretKey::random(&mut OsRng);
     let command2 = APDUCommand {
         cla: 0x80,
@@ -99,6 +101,7 @@ fn main() {
     println!(" ");
 
     // Commitment
+    sleep(Duration::from_millis(2000));
     let value: u64 = 60;
     let value_bytes = value.to_le_bytes();
     let command3 = APDUCommand {
@@ -116,20 +119,29 @@ fn main() {
     println!();
 
     // GetPublicKey
-    for i in 0..10 {
-        let address_index = (i as u64).to_le_bytes();
-        let bip32_path = "path:       m/44'/535348'/0'/0/".to_owned() + &u64::from_le_bytes(address_index).to_string();
-        println!("{}", bip32_path);
-
+    sleep(Duration::from_millis(2000));
+    let account_k = RistrettoSecretKey::random(&mut OsRng);
+    let account_pk = RistrettoPublicKey::from_secret_key(&account_k);
+    let account_pk = &account_pk.as_bytes()[0..8].to_vec().to_hex(); // We only use the 1st 8 bytes
+    let account_pk = u64::from_str_radix(account_pk, 16).unwrap();
+    for i in 0u64..10 {
+        let address_index = i.to_le_bytes();
+        let mut data = account_pk.to_le_bytes().to_vec();
+        data.extend_from_slice(&address_index);
         let command4 = APDUCommand {
             cla: 0x80,
             ins: 0x04, // GetPublicKey
             p1: 0x00,
             p2: 0x00,
-            data: address_index.as_bytes().clone(),
+            data: data.clone(),
         };
         let result = ledger.exchange(&command4).unwrap();
 
+        let bip32_path = "path:       m/44'/535348'/".to_owned() +
+            &account_pk.to_string() +
+            "0'/0/" +
+            &u64::from_le_bytes(address_index).to_string();
+        println!("{}", bip32_path);
         if result.data().len() < 33 {
             println!("Error: no data!");
         } else {
@@ -139,15 +151,31 @@ fn main() {
     }
     println!();
 
-    // Exit
+    // BadInstruction
+    sleep(Duration::from_millis(2000));
     let command5 = APDUCommand {
+        cla: 0x80,
+        ins: 0x33, // Exit
+        p1: 0x00,
+        p2: 0x00,
+        data: vec![0],
+    };
+    match ledger.exchange(&command5) {
+        Ok(result) => println!("BadInstruction response ({:?})", result),
+        Err(e) => println!("BadInstruction response ({})", e),
+    };
+    println!();
+
+    // Exit
+    sleep(Duration::from_millis(2000));
+    let command6 = APDUCommand {
         cla: 0x80,
         ins: 0x05, // Exit
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
     };
-    match ledger.exchange(&command5) {
+    match ledger.exchange(&command6) {
         Ok(result) => println!("Ledger device disconnected ({:?})", result),
         Err(e) => println!("Ledger device disconnected ({})", e),
     };

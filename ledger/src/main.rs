@@ -36,6 +36,9 @@ use nanos_sdk::{buttons::ButtonEvent, io};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
+    hash::blake2::Blake256,
+    hash_domain,
+    hashing::DomainSeparation,
     keys::PublicKey,
     ristretto::{
         pedersen::extended_commitment_factory::ExtendedPedersenCommitmentFactory,
@@ -45,13 +48,10 @@ use tari_crypto::{
     },
     tari_utilities::ByteArray,
 };
+
+use crate::alloc::string::{String, ToString};
+
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
-
-use tari_crypto::{hash::blake2::Blake256, hash_domain, hashing::DomainSeparation};
-
-use crate::alloc::{
-    string::{String, ToString},
-};
 
 /// App Version parameters
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -106,6 +106,7 @@ extern "C" fn sample_main() {
     }
 }
 
+// Convert a u64 to a string without using the standard library
 fn u64_to_string(number: u64) -> String {
     let mut buffer = [0u8; 20]; // Maximum length for a 64-bit integer (including null terminator)
     let mut pos = 0;
@@ -135,6 +136,7 @@ fn u64_to_string(number: u64) -> String {
     String::from_utf8_lossy(&buffer[..pos]).to_string()
 }
 
+// Get a raw key from the BIP32 path
 fn get_raw_key(path: [u32; 5]) -> [u8; 32] {
     let mut raw_key = [0u8; 32];
     unsafe {
@@ -156,6 +158,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
 
     match instruction {
         Instruction::GetVersion => {
+            ui::SingleMessage::new("GetVersion...").show();
             let name_bytes = NAME.as_bytes();
             let version_bytes = VERSION.as_bytes();
             comm.append(&[1]); // Format
@@ -164,9 +167,11 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             comm.append(&[version_bytes.len() as u8]);
             comm.append(version_bytes);
             comm.append(&[0]); // No flags
+            ui::SingleMessage::new("GetVersion... Done").show();
             comm.reply_ok();
         },
         Instruction::Sign => {
+            ui::SingleMessage::new("Sign...").show();
             // first 5 bytes are instruction details
             let offset = 5;
             let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
@@ -191,9 +196,11 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             comm.append(public_key.as_bytes());
             comm.append(sig);
             comm.append(nonce);
+            ui::SingleMessage::new("Sign... Done").show();
             comm.reply_ok();
         },
         Instruction::Commitment => {
+            ui::SingleMessage::new("Commitment...").show();
             // first 5 bytes are instruction details
             let offset = 5;
             let mut value_bytes = [0u8; 8];
@@ -207,19 +214,24 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let commitment = com_factories.commit_value(&k, value);
             comm.append(&[1]); // version
             comm.append(commitment.as_bytes());
+            ui::SingleMessage::new("Commitment... Done").show();
             comm.reply_ok();
         },
         Instruction::GetPublicKey => {
+            ui::SingleMessage::new("GetPublicKey...").show();
             // first 5 bytes are instruction details
             let offset = 5;
-            let mut address_index = [0u8; 8];
-            address_index.clone_from_slice(comm.get(offset, offset + 8));
-            let address_index_u64 = u64::from_le_bytes(address_index);
-            let index = u64_to_string(address_index_u64);
+            let mut account_bytes = [0u8; 8];
+            account_bytes.clone_from_slice(comm.get(offset, offset + 8));
+            let account = u64_to_string(u64::from_le_bytes(account_bytes));
+            let mut address_index_bytes = [0u8; 8];
+            address_index_bytes.clone_from_slice(comm.get(offset + 32, offset + 32 + 8));
+            let address_index = u64_to_string(u64::from_le_bytes(address_index_bytes));
 
-            let mut bip32_path = "m/44'/535348'/0'/0/".to_string();
-            bip32_path.push_str(&index);
-            ui::SingleMessage::new(&bip32_path).show();
+            let mut bip32_path = "m/44'/535348'/".to_string();
+            bip32_path.push_str(&account);
+            bip32_path.push_str(&"'/0/");
+            bip32_path.push_str(&address_index);
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(bip32_path.as_bytes());
 
             let raw_key = get_raw_key(path);
@@ -227,12 +239,15 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let pk = RistrettoPublicKey::from_secret_key(&k);
             comm.append(&[1]); // version
             comm.append(pk.as_bytes());
+            ui::SingleMessage::new("GetPublicKey... Done").show();
             comm.reply_ok();
         },
         Instruction::BadInstruction => {
+            ui::SingleMessage::new("BadInstruction...!").show();
             return Err(StatusWords::BadIns.into());
         },
         Instruction::Exit => {
+            ui::SingleMessage::new("Exit").show();
             comm.reply_ok();
             nanos_sdk::exit_app(0)
         },
