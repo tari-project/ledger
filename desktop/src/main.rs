@@ -1,15 +1,15 @@
 use core::marker::PhantomData;
-use std::{thread::sleep, time::Duration};
+use std::{sync::Arc, thread::sleep, time::Duration};
 
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
 use digest::Digest;
+use lazy_static::lazy_static;
 use ledger_transport::APDUCommand;
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
-use once_cell::sync::Lazy;
 use rand::rngs::OsRng;
 use tari_crypto::{
     hash::blake2::Blake256,
@@ -20,18 +20,55 @@ use tari_crypto::{
     tari_utilities::{hex::Hex, ByteArray},
 };
 
-fn hidapi() -> &'static HidApi {
-    static HIDAPI: Lazy<HidApi> = Lazy::new(|| HidApi::new().expect("unable to get HIDAPI"));
+const EXPECTED_NAME: &str = "tari_ledger_demo";
+const EXPECTED_PACKAGE: &str = "0.0.1";
 
-    &HIDAPI
+struct LedgerDevice {
+    transport: Arc<TransportNativeHID>,
 }
-struct Tari;
-impl App for Tari {
+
+impl LedgerDevice {
+    fn new() -> Result<Self, String> {
+        let transport = TransportNativeHID::new(LedgerDevice::hidapi()?).map_err(|e| format!("{}\n", e))?;
+        Ok(Self {
+            transport: Arc::new(transport),
+        })
+    }
+
+    // Get a reference to the underlying transport.
+    fn get_transport(&self) -> &TransportNativeHID {
+        &self.transport
+    }
+
+    // Helper function to get the ledger HIDAPI.
+    fn hidapi() -> Result<&'static HidApi, String> {
+        lazy_static! {
+            static ref HIDAPI: Result<HidApi, String> =
+                HidApi::new().map_err(|e| format!("Unable to get HIDAPI: {}", e));
+        }
+
+        HIDAPI.as_ref().map_err(|e| format!("{}", e))
+    }
+}
+
+struct LedgerApp;
+
+impl App for LedgerApp {
     const CLA: u8 = 0x0;
 }
+
 hash_domain!(TransactionHashDomain, "com.tari.base_layer.core.transactions", 0);
 
 fn main() {
+    let ledger_device = match LedgerDevice::new() {
+        Ok(ledger) => ledger,
+        Err(e) => {
+            println!("\nError: {}", e);
+            return;
+        },
+    };
+    let ledger = ledger_device.get_transport();
+
     // GetVersion
     let command = APDUCommand {
         cla: 0x80,
@@ -41,16 +78,20 @@ fn main() {
         data: vec![0],
     };
     let message = vec![0];
-    let ledger = TransportNativeHID::new(hidapi()).expect("Could not get a device");
 
-    // use device info command that works in the dashboard
-    let result = match futures::executor::block_on(Tari::send_chunks(&ledger, command, &message)) {
+    // This call will exit immediately if the application not started.
+    let result = match futures::executor::block_on(LedgerApp::send_chunks(ledger, command, &message)) {
         Ok(result) => result,
         Err(e) => {
-            println!("Error: {}", e);
+            println!("\nError: 'GetVersion' ({})\n", e);
             return;
         },
     };
+    if result.data().is_empty() {
+        println!("\nError: 'GetVersion' insufficient response! ({:?})\n", result);
+        return;
+    }
+
     let data_len = result.data()[1] as usize;
     let name = &result.data()[2..data_len + 2];
     let name = std::str::from_utf8(name).unwrap();
@@ -61,18 +102,42 @@ fn main() {
     let package = std::str::from_utf8(package).unwrap();
     println!("package version: {}", package);
     println!();
+    if name != EXPECTED_NAME {
+        println!(
+            "Error: Unexpected '{}' application, looking for '{}'\n",
+            name, EXPECTED_NAME
+        );
+        return;
+    }
+    if package != EXPECTED_PACKAGE {
+        println!(
+            "Error: Unexpected '{}' package version, looking for '{}'\n",
+            package, EXPECTED_PACKAGE
+        );
+        return;
+    }
 
     // Sign
     sleep(Duration::from_millis(2000));
     let challenge = RistrettoSecretKey::random(&mut OsRng);
-    let command2 = APDUCommand {
+    let command = APDUCommand {
         cla: 0x80,
         ins: 0x02, // Sign
         p1: 0x00,
         p2: 0x00,
         data: challenge.as_bytes().clone(),
     };
-    let result = ledger.exchange(&command2).unwrap();
+    let result = match ledger.exchange(&command) {
+        Ok(result) => result,
+        Err(e) => {
+            println!("\nError: Sign {}\n", e);
+            return;
+        },
+    };
+    if result.data().len() < 97 {
+        println!("\nError: 'Sign' insufficient response! ({:?})\n", result);
+        return;
+    }
 
     let public_key = &result.data()[1..33];
     let public_key = RistrettoPublicKey::from_bytes(public_key).unwrap();
@@ -104,14 +169,24 @@ fn main() {
     sleep(Duration::from_millis(2000));
     let value: u64 = 60;
     let value_bytes = value.to_le_bytes();
-    let command3 = APDUCommand {
+    let command = APDUCommand {
         cla: 0x80,
         ins: 0x03, // Commitment
         p1: 0x00,
         p2: 0x00,
         data: value_bytes.as_bytes().clone(),
     };
-    let result = ledger.exchange(&command3).unwrap();
+    let result = match ledger.exchange(&command) {
+        Ok(result) => result,
+        Err(e) => {
+            println!("\nError: Commitment {}\n", e);
+            return;
+        },
+    };
+    if result.data().len() < 33 {
+        println!("\nError: 'Commitment' insufficient response! ({:?})\n", result);
+        return;
+    }
 
     let commitment = &result.data()[1..33];
     let commitment = PedersenCommitment::from_bytes(commitment).unwrap();
@@ -128,14 +203,20 @@ fn main() {
         let address_index = i.to_le_bytes();
         let mut data = account_pk.to_le_bytes().to_vec();
         data.extend_from_slice(&address_index);
-        let command4 = APDUCommand {
+        let command = APDUCommand {
             cla: 0x80,
             ins: 0x04, // GetPublicKey
             p1: 0x00,
             p2: 0x00,
             data: data.clone(),
         };
-        let result = ledger.exchange(&command4).unwrap();
+        let result = match ledger.exchange(&command) {
+            Ok(result) => result,
+            Err(e) => {
+                println!("\nError: GetPublicKey {}\n", e);
+                return;
+            },
+        };
 
         let bip32_path = "path:       m/44'/535348'/".to_owned() +
             &account_pk.to_string() +
@@ -143,24 +224,24 @@ fn main() {
             &u64::from_le_bytes(address_index).to_string();
         println!("{}", bip32_path);
         if result.data().len() < 33 {
-            println!("Error: no data!");
-        } else {
-            let public_key = RistrettoPublicKey::from_bytes(&result.data()[1..33]).unwrap();
-            println!("public_key: {}", public_key.to_hex());
+            println!("\nError: 'GetPublicKey' insufficient response! ({:?})\n", result);
+            return;
         }
+        let public_key = RistrettoPublicKey::from_bytes(&result.data()[1..33]).unwrap();
+        println!("public_key: {}", public_key.to_hex());
     }
     println!();
 
     // BadInstruction
     sleep(Duration::from_millis(2000));
-    let command5 = APDUCommand {
+    let command = APDUCommand {
         cla: 0x80,
         ins: 0x33, // Exit
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
     };
-    match ledger.exchange(&command5) {
+    match ledger.exchange(&command) {
         Ok(result) => println!("BadInstruction response ({:?})", result),
         Err(e) => println!("BadInstruction response ({})", e),
     };
@@ -168,16 +249,16 @@ fn main() {
 
     // Exit
     sleep(Duration::from_millis(2000));
-    let command6 = APDUCommand {
+    let command = APDUCommand {
         cla: 0x80,
         ins: 0x05, // Exit
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
     };
-    match ledger.exchange(&command6) {
+    match ledger.exchange(&command) {
         Ok(result) => println!("Ledger device disconnected ({:?})", result),
-        Err(e) => println!("Ledger device disconnected ({})", e),
+        Err(e) => println!("Ledger device disconnected with error ({})", e),
     };
     println!();
 }

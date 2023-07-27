@@ -75,12 +75,12 @@ If the auto-load does not work ("ledgerwallet.client.CommException: Exception : 
 try to do a manual install:
 - In some cases the `cargo ledger build` action will invalidate `app_nanosplus.json` by setting the first line to 
   `"apiLevel": "0",` - ensure it is set to `"apiLevel": "1",`
-- Manually delete if installed with `ledgerctl delete Tari`
+- Manually delete if installed with `ledgerctl delete "Tari Ledger Demo"`
 - Manually install with `ledgerctl install app_nanosplus.json`
 
 ### Running the test code `desktop`
 
-Start the `Tari` application on the Ledger by navigating to the app and pressing both buttons. You should see 
+Start the `Tari Ledger Demo` application on the Ledger by navigating to the app and pressing both buttons. You should see 
 `Tari test app` displayed on the screen.
 
 **Note:** Do not press any more buttons!
@@ -91,7 +91,7 @@ Run the example with `cargo run`
 
 You should see a similar output, just with different hex values:
 ```
-name: tari
+name: tari_ledger_demo
 package version: 0.0.1
 
 challenge:  17b4211e325fec8958863892549320cf4982b2f1345ef9dbe14b6597a3b3320c
@@ -131,9 +131,9 @@ Press both buttons on the Ledger again to exit the application.
 
 **Errors**
 
-- If the `Tari` application on the Ledger is not started, you should see the following output:
+- If the `Tari Ledger Demo` application on the Ledger is not started, you should see the following output:
 
-  `Error: Uknown error: 28161`
+  `Error: 'GetVersion' (Uknown error: 28161)`
  
 - If you pressed a button on the Ledger after starting the application, but before running the demo, you should see the 
   following output:

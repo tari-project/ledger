@@ -63,7 +63,7 @@ enum Instruction {
     Commitment,
     GetPublicKey,
     Exit,
-    BadInstruction,
+    BadInstruction(u8),
 }
 
 impl From<io::ApduHeader> for Instruction {
@@ -74,7 +74,7 @@ impl From<io::ApduHeader> for Instruction {
             0x03 => Self::Commitment,
             0x04 => Self::GetPublicKey,
             0x05 => Self::Exit,
-            _ => Self::BadInstruction,
+            other => Self::BadInstruction(other),
         }
     }
 }
@@ -99,7 +99,7 @@ extern "C" fn sample_main() {
             io::Event::Button(_) => {},
             io::Event::Command(apdu_header) => match handle_apdu(&mut comm, apdu_header.into()) {
                 Ok(()) => comm.reply_ok(),
-                Err(sw) => comm.reply(sw),
+                Err(e) => comm.reply(e),
             },
             io::Event::Ticker => {},
         }
@@ -134,6 +134,13 @@ fn u64_to_string(number: u64) -> String {
     }
 
     String::from_utf8_lossy(&buffer[..pos]).to_string()
+}
+
+// Convert a single byte to a hex string
+fn byte_to_hex(byte: u8) -> String {
+    const HEX_CHARS: [u8; 16] = *b"0123456789abcdef";
+    let hex = [HEX_CHARS[(byte >> 4) as usize], HEX_CHARS[(byte & 0x0F) as usize]];
+    String::from_utf8_lossy(&hex).to_string()
 }
 
 // Get a raw key from the BIP32 path
@@ -225,7 +232,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             account_bytes.clone_from_slice(comm.get(offset, offset + 8));
             let account = u64_to_string(u64::from_le_bytes(account_bytes));
             let mut address_index_bytes = [0u8; 8];
-            address_index_bytes.clone_from_slice(comm.get(offset + 32, offset + 32 + 8));
+            address_index_bytes.clone_from_slice(comm.get(offset + 8, offset + 8 + 8));
             let address_index = u64_to_string(u64::from_le_bytes(address_index_bytes));
 
             let mut bip32_path = "m/44'/535348'/".to_string();
@@ -242,8 +249,11 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             ui::SingleMessage::new("GetPublicKey... Done").show();
             comm.reply_ok();
         },
-        Instruction::BadInstruction => {
-            ui::SingleMessage::new("BadInstruction...!").show();
+        Instruction::BadInstruction(val) => {
+            let mut error = "BadInstruction...! (".to_string();
+            error.push_str(&byte_to_hex(val));
+            error.push_str(&")");
+            ui::SingleMessage::new(&error).show();
             return Err(StatusWords::BadIns.into());
         },
         Instruction::Exit => {
