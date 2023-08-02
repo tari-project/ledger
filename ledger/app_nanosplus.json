@@ -15,7 +15,7 @@
   },
   "flags": "0",
   "icon": "key_14x14.gif",
-  "name": "Tari",
+  "name": "Tari Ledger Demo",
   "targetId": "0x33100004",
   "version": "0.0.1"
 }

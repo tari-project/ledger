@@ -442,21 +442,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tari"
-version = "0.0.1"
-dependencies = [
- "borsh",
- "critical-section",
- "digest",
- "embedded-alloc",
- "nanos_sdk",
- "nanos_ui",
- "rand_core",
- "tari-curve25519-dalek",
- "tari_crypto",
-]
-
-[[package]]
 name = "tari-curve25519-dalek"
 version = "4.0.3"
 source = "git+https://github.com/tari-project/curve25519-dalek#0d4a29b7123c8d4a6494ff08598f7697f0bca125"
@@ -490,6 +475,21 @@ dependencies = [
  "snafu",
  "tari-curve25519-dalek",
  "tari_utilities",
+]
+
+[[package]]
+name = "tari_ledger_demo"
+version = "0.0.1"
+dependencies = [
+ "borsh",
+ "critical-section",
+ "digest",
+ "embedded-alloc",
+ "nanos_sdk",
+ "nanos_ui",
+ "rand_core",
+ "tari-curve25519-dalek",
+ "tari_crypto",
 ]
 
 [[package]]
