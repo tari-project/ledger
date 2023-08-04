@@ -1,16 +1,16 @@
 use core::marker::PhantomData;
 use std::{sync::Arc, thread::sleep, time::Duration};
 
+use blake2::Blake2b;
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
-use blake2::Blake2b;
-
 use digest::Digest;
 use ledger_transport::APDUCommand;
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
+use once_cell::sync::Lazy;
 use rand::rngs::OsRng;
 use tari_crypto::{
     hash_domain,
@@ -19,7 +19,6 @@ use tari_crypto::{
     ristretto::{pedersen::PedersenCommitment, RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
     tari_utilities::{hex::Hex, ByteArray},
 };
-use once_cell::sync::Lazy;
 const EXPECTED_NAME: &str = "tari_ledger_demo";
 const EXPECTED_PACKAGE: &str = "0.0.1";
 
@@ -42,12 +41,12 @@ impl LedgerDevice {
 
     // Helper function to get the ledger HIDAPI.
     fn hidapi() -> Result<&'static HidApi, String> {
-        static HIDAPI: Lazy<Result<HidApi, String>> = Lazy::new(|| HidApi::new().map_err(|e| format!("Unable to get HIDAPI: {}", e)));
+        static HIDAPI: Lazy<Result<HidApi, String>> =
+            Lazy::new(|| HidApi::new().map_err(|e| format!("Unable to get HIDAPI: {}", e)));
 
         HIDAPI.as_ref().map_err(|e| format!("{}", e))
     }
 }
-
 
 struct LedgerApp;
 

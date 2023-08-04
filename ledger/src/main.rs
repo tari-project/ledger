@@ -27,6 +27,7 @@
 extern crate alloc;
 use core::marker::PhantomData;
 
+use blake2::Blake2b;
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
@@ -47,7 +48,7 @@ use tari_crypto::{
     },
     tari_utilities::ByteArray,
 };
-use blake2::Blake2b;
+
 use crate::alloc::string::{String, ToString};
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
