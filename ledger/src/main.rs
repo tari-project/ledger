@@ -27,6 +27,7 @@
 extern crate alloc;
 use core::marker::PhantomData;
 
+use blake2::Blake2b;
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
@@ -36,7 +37,6 @@ use nanos_sdk::{buttons::ButtonEvent, io};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
-    hash::blake2::Blake256,
     hash_domain,
     hashing::DomainSeparation,
     keys::PublicKey,
@@ -50,7 +50,6 @@ use tari_crypto::{
 };
 
 use crate::alloc::string::{String, ToString};
-
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 /// App Version parameters
@@ -186,7 +185,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
 
             let raw_key = get_raw_key(path);
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
-            let n = Blake256::new().chain(k.as_bytes()).finalize().to_vec();
+            let n = Blake2b::<U32>::new().chain(k.as_bytes()).finalize().to_vec();
             let n = RistrettoSecretKey::from_bytes(&n).unwrap();
             let public_key = RistrettoPublicKey::from_secret_key(&k);
             let public_nonce = RistrettoPublicKey::from_secret_key(&n);
@@ -269,8 +268,8 @@ pub struct DomainSeparatedConsensusHasher<M>(PhantomData<M>);
 
 impl<M: DomainSeparation> DomainSeparatedConsensusHasher<M> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(label: &'static str) -> ConsensusHasher<Blake256> {
-        let mut digest = Blake256::new();
+    pub fn new(label: &'static str) -> ConsensusHasher<Blake2b<U32>> {
+        let mut digest = Blake2b::<U32>::new();
         M::add_domain_separation_tag(&mut digest, label);
         ConsensusHasher::from_digest(digest)
     }
