@@ -5,21 +5,21 @@ use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
+use blake2::Blake2b;
+
 use digest::Digest;
-use lazy_static::lazy_static;
 use ledger_transport::APDUCommand;
 use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
 use rand::rngs::OsRng;
 use tari_crypto::{
-    hash::blake2::Blake256,
     hash_domain,
     hashing::DomainSeparation,
     keys::{PublicKey, SecretKey},
     ristretto::{pedersen::PedersenCommitment, RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
     tari_utilities::{hex::Hex, ByteArray},
 };
-
+use once_cell::sync::Lazy;
 const EXPECTED_NAME: &str = "tari_ledger_demo";
 const EXPECTED_PACKAGE: &str = "0.0.1";
 
@@ -42,14 +42,12 @@ impl LedgerDevice {
 
     // Helper function to get the ledger HIDAPI.
     fn hidapi() -> Result<&'static HidApi, String> {
-        lazy_static! {
-            static ref HIDAPI: Result<HidApi, String> =
-                HidApi::new().map_err(|e| format!("Unable to get HIDAPI: {}", e));
-        }
+        static HIDAPI: Lazy<Result<HidApi, String>> = Lazy::new(|| HidApi::new().map_err(|e| format!("Unable to get HIDAPI: {}", e)));
 
         HIDAPI.as_ref().map_err(|e| format!("{}", e))
     }
 }
+
 
 struct LedgerApp;
 
@@ -267,8 +265,8 @@ pub struct DomainSeparatedConsensusHasher<M>(PhantomData<M>);
 
 impl<M: DomainSeparation> DomainSeparatedConsensusHasher<M> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(label: &'static str) -> ConsensusHasher<Blake256> {
-        let mut digest = Blake256::new();
+    pub fn new(label: &'static str) -> ConsensusHasher<Blake2b<U32>> {
+        let mut digest = Blake2b::<U32>::new();
         M::add_domain_separation_tag(&mut digest, label);
         ConsensusHasher::from_digest(digest)
     }

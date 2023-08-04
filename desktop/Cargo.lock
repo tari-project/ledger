@@ -31,25 +31,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic-polyfill"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4"
+dependencies = [
+ "critical-section",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
-
-[[package]]
-name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "bincode"
-version = "1.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "blake2"
@@ -148,6 +142,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "critical-section"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6548a0ad5d2549e111e1f6a11a6c2e2d00ce6a3dafe22948d67c2b443f775e52"
+
+[[package]]
 name = "crypto-common"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -160,7 +160,8 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.0"
-source = "git+https://github.com/tari-project/curve25519-dalek.git#0d4a29b7123c8d4a6494ff08598f7697f0bca125"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83fdaf97f4804dcebfa5862639bc9ce4121e82140bec2a987ac5140294865b5b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -373,12 +374,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itoa"
-version = "1.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62b02a5381cc465bd3041d84623d0fa3b66738b52b8e2fc3bab8ad63ab032f4a"
-
-[[package]]
 name = "keccak"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -392,11 +387,6 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "git+https://github.com/rust-lang-nursery/lazy-static.rs.git?rev=e83d664#e83d66490775eb953807c39d1f073a6daa3bc760"
 
 [[package]]
 name = "ledger-apdu"
@@ -458,16 +448,17 @@ dependencies = [
 name = "legder_integration"
 version = "0.1.0"
 dependencies = [
+ "blake2",
  "borsh",
  "digest",
  "futures",
- "lazy_static 1.4.0",
  "ledger-transport 0.10.0 (git+https://github.com/Zondax/ledger-rs)",
  "ledger-transport-hid",
  "ledger-zondax-generic",
+ "once_cell",
  "rand",
  "tari_crypto",
- "tari_utilities",
+ "tari_utilities 0.5.0 (git+https://github.com/tari-project/tari_utilities.git)",
 ]
 
 [[package]]
@@ -501,12 +492,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "newtype-ops"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d36047f46c69ef97b60e7b069a26ce9a15cd8a7852eddb6991ea94a83ba36a78"
-
-[[package]]
 name = "no-std-compat"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -517,6 +502,10 @@ name = "once_cell"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
+dependencies = [
+ "atomic-polyfill",
+ "critical-section",
+]
 
 [[package]]
 name = "pin-project-lite"
@@ -615,12 +604,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ryu"
-version = "1.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe232bdf6be8c8de797b22184ee71118d63780ea42ac85b61d1baa6d3b782ae9"
-
-[[package]]
 name = "semver"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -644,17 +627,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.25",
-]
-
-[[package]]
-name = "serde_json"
-version = "1.0.102"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5062a995d481b2308b6064e9af76011f2921c35f97b0468811ed9f6cd91dfed"
-dependencies = [
- "itoa",
- "ryu",
- "serde",
 ]
 
 [[package]]
@@ -729,12 +701,12 @@ dependencies = [
 [[package]]
 name = "tari-curve25519-dalek"
 version = "4.0.3"
-source = "git+https://github.com/tari-project/curve25519-dalek.git#0d4a29b7123c8d4a6494ff08598f7697f0bca125"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9b8e2644aae57a832e475ebc31199ab1114ebd7fe4d2621e67e89bdd9c8ac38"
 dependencies = [
  "cfg-if",
  "cpufeatures",
  "curve25519-dalek-derive",
- "digest",
  "fiat-crypto",
  "platforms",
  "rand_core",
@@ -745,27 +717,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "tari_bulletproofs"
-version = "4.4.1"
-source = "git+https://github.com/tari-project/bulletproofs#86abfb5b43f40a4875b1d81c2e64fda1cbb19eff"
-dependencies = [
- "blake2",
- "byteorder",
- "digest",
- "merlin",
- "rand_core",
- "serde",
- "serde_derive",
- "sha3",
- "subtle",
- "tari-curve25519-dalek",
- "zeroize",
-]
-
-[[package]]
 name = "tari_bulletproofs_plus"
-version = "0.3.0"
-source = "git+https://github.com/tari-project/bulletproofs-plus#4ed3bb875e58a3dc7351a3844098a7031c93f9eb"
+version = "0.3.1"
+source = "git+https://github.com/tari-project/bulletproofs-plus?rev=b4756b05edfc2cc0f9b0240ca34a22bd9730fbd1#b4756b05edfc2cc0f9b0240ca34a22bd9730fbd1"
 dependencies = [
  "blake2",
  "byteorder",
@@ -773,7 +727,7 @@ dependencies = [
  "derive_more",
  "digest",
  "itertools",
- "lazy_static 1.4.0",
+ "lazy_static",
  "merlin",
  "rand",
  "rand_core",
@@ -787,25 +741,31 @@ dependencies = [
 [[package]]
 name = "tari_crypto"
 version = "0.17.0"
-source = "git+https://github.com/hansieodendaal/tari-crypto.git?rev=d6dd58b4657b2b8003ddac328eccd5b9f2597e79#d6dd58b4657b2b8003ddac328eccd5b9f2597e79"
+source = "git+https://github.com/swvheerden/tari-crypto.git?rev=bd451c1d79a42510c38f73e24c6b24f88b5117ba#bd451c1d79a42510c38f73e24c6b24f88b5117ba"
 dependencies = [
  "blake2",
  "borsh",
  "digest",
- "lazy_static 1.5.0",
  "log",
- "merlin",
  "once_cell",
  "rand_chacha",
  "rand_core",
  "serde",
- "serde_json",
  "sha3",
  "snafu",
  "tari-curve25519-dalek",
- "tari_bulletproofs",
  "tari_bulletproofs_plus",
- "tari_utilities",
+ "tari_utilities 0.5.0 (git+https://github.com/tari-project/tari_utilities.git?rev=c06726322683c4671b93388b444d108103cd7b55)",
+ "zeroize",
+]
+
+[[package]]
+name = "tari_utilities"
+version = "0.5.0"
+source = "git+https://github.com/tari-project/tari_utilities.git?rev=c06726322683c4671b93388b444d108103cd7b55#c06726322683c4671b93388b444d108103cd7b55"
+dependencies = [
+ "generic-array",
+ "snafu",
  "zeroize",
 ]
 
@@ -814,14 +774,8 @@ name = "tari_utilities"
 version = "0.5.0"
 source = "git+https://github.com/tari-project/tari_utilities.git#468db3ecd40e16e5e74a99f1d1485f0a576e8ab5"
 dependencies = [
- "base64",
- "bincode",
  "generic-array",
- "newtype-ops",
- "serde",
- "serde_json",
  "snafu",
- "zeroize",
 ]
 
 [[package]]
