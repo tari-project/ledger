@@ -1,16 +1,15 @@
 use core::marker::PhantomData;
-use std::{sync::Arc, thread::sleep, time::Duration};
+use std::{thread::sleep, time::Duration};
 
 use blake2::Blake2b;
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
-use digest::Digest;
+use digest::{consts::U32, Digest};
+use ledger::LedgerWallet;
 use ledger_transport::APDUCommand;
-use ledger_transport_hid::{hidapi::HidApi, TransportNativeHID};
 use ledger_zondax_generic::{App, AppExt};
-use once_cell::sync::Lazy;
 use rand::rngs::OsRng;
 use tari_crypto::{
     hash_domain,
@@ -19,34 +18,10 @@ use tari_crypto::{
     ristretto::{pedersen::PedersenCommitment, RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
     tari_utilities::{hex::Hex, ByteArray},
 };
-const EXPECTED_NAME: &str = "tari_ledger_demo";
-const EXPECTED_PACKAGE: &str = "0.0.1";
 
-struct LedgerDevice {
-    transport: Arc<TransportNativeHID>,
-}
+use crate::ledger::TRANSPORT;
 
-impl LedgerDevice {
-    fn new() -> Result<Self, String> {
-        let transport = TransportNativeHID::new(LedgerDevice::hidapi()?).map_err(|e| format!("{}\n", e))?;
-        Ok(Self {
-            transport: Arc::new(transport),
-        })
-    }
-
-    // Get a reference to the underlying transport.
-    fn get_transport(&self) -> &TransportNativeHID {
-        &self.transport
-    }
-
-    // Helper function to get the ledger HIDAPI.
-    fn hidapi() -> Result<&'static HidApi, String> {
-        static HIDAPI: Lazy<Result<HidApi, String>> =
-            Lazy::new(|| HidApi::new().map_err(|e| format!("Unable to get HIDAPI: {}", e)));
-
-        HIDAPI.as_ref().map_err(|e| format!("{}", e))
-    }
-}
+mod ledger;
 
 struct LedgerApp;
 
@@ -54,22 +29,51 @@ impl App for LedgerApp {
     const CLA: u8 = 0x0;
 }
 
+const EXPECTED_NAME: &str = "tari_ledger_demo";
+const EXPECTED_PACKAGE: &str = "0.0.1";
+
 hash_domain!(TransactionHashDomain, "com.tari.base_layer.core.transactions", 0);
 
+enum Instruction {
+    GetVersion,
+    Sign,
+    Commitment,
+    GetPublicKey,
+    GetPublicNonce,
+    Exit,
+}
+
+impl Instruction {
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            Self::GetVersion => 0x01,
+            Self::Sign => 0x02,
+            Self::Commitment => 0x03,
+            Self::GetPublicKey => 0x04,
+            Self::GetPublicNonce => 0x05,
+            Self::Exit => 0x06,
+        }
+    }
+}
+
 fn main() {
-    let ledger_device = match LedgerDevice::new() {
-        Ok(ledger) => ledger,
+    let account_k = RistrettoSecretKey::random(&mut OsRng);
+    let account_pk = RistrettoPublicKey::from_secret_key(&account_k);
+
+    let ledger = match LedgerWallet::new(account_pk) {
+        Ok(wallet) => wallet,
         Err(e) => {
-            println!("\nError: {}", e);
+            println!("\nError: {:?}", e);
             return;
         },
     };
-    let ledger = ledger_device.get_transport();
+    let binding = TRANSPORT.lock().expect("lock exists");
+    let transport = binding.as_ref().expect("transport exists");
 
     // GetVersion
     let command = APDUCommand {
         cla: 0x80,
-        ins: 0x01, // GetVersion
+        ins: Instruction::GetVersion.as_u8(),
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
@@ -77,7 +81,7 @@ fn main() {
     let message = vec![0];
 
     // This call will exit immediately if the application not started.
-    let result = match futures::executor::block_on(LedgerApp::send_chunks(ledger, command, &message)) {
+    let result = match futures::executor::block_on(LedgerApp::send_chunks(transport, command, &message)) {
         Ok(result) => result,
         Err(e) => {
             println!("\nError: 'GetVersion' ({})\n", e);
@@ -119,12 +123,12 @@ fn main() {
     let challenge = RistrettoSecretKey::random(&mut OsRng);
     let command = APDUCommand {
         cla: 0x80,
-        ins: 0x02, // Sign
+        ins: Instruction::Sign.as_u8(),
         p1: 0x00,
         p2: 0x00,
         data: challenge.as_bytes().clone(),
     };
-    let result = match ledger.exchange(&command) {
+    let result = match transport.exchange(&command) {
         Ok(result) => result,
         Err(e) => {
             println!("\nError: Sign {}\n", e);
@@ -168,12 +172,12 @@ fn main() {
     let value_bytes = value.to_le_bytes();
     let command = APDUCommand {
         cla: 0x80,
-        ins: 0x03, // Commitment
+        ins: Instruction::Commitment.as_u8(),
         p1: 0x00,
         p2: 0x00,
         data: value_bytes.as_bytes().clone(),
     };
-    let result = match ledger.exchange(&command) {
+    let result = match transport.exchange(&command) {
         Ok(result) => result,
         Err(e) => {
             println!("\nError: Commitment {}\n", e);
@@ -192,22 +196,20 @@ fn main() {
 
     // GetPublicKey
     sleep(Duration::from_millis(2000));
-    let account_k = RistrettoSecretKey::random(&mut OsRng);
-    let account_pk = RistrettoPublicKey::from_secret_key(&account_k);
-    let account_pk = &account_pk.as_bytes()[0..8].to_vec().to_hex(); // We only use the 1st 8 bytes
-    let account_pk = u64::from_str_radix(account_pk, 16).unwrap();
-    for i in 0u64..10 {
+    let account_bytes = &ledger.account_public_key().as_bytes()[0..8].to_vec().to_hex(); // We only use the 1st 8 bytes
+    let account = u64::from_str_radix(account_bytes, 16).unwrap();
+    for i in 0u64..5 {
         let address_index = i.to_le_bytes();
-        let mut data = account_pk.to_le_bytes().to_vec();
+        let mut data = account.to_le_bytes().to_vec();
         data.extend_from_slice(&address_index);
         let command = APDUCommand {
             cla: 0x80,
-            ins: 0x04, // GetPublicKey
+            ins: Instruction::GetPublicKey.as_u8(),
             p1: 0x00,
             p2: 0x00,
             data: data.clone(),
         };
-        let result = match ledger.exchange(&command) {
+        let result = match transport.exchange(&command) {
             Ok(result) => result,
             Err(e) => {
                 println!("\nError: GetPublicKey {}\n", e);
@@ -216,7 +218,7 @@ fn main() {
         };
 
         let bip32_path = "path:       m/44'/535348'/".to_owned() +
-            &account_pk.to_string() +
+            &account.to_string() +
             "0'/0/" +
             &u64::from_le_bytes(address_index).to_string();
         println!("{}", bip32_path);
@@ -229,16 +231,43 @@ fn main() {
     }
     println!();
 
+    // GetPublicNonce
+    sleep(Duration::from_millis(2000));
+    for _i in 0..5 {
+        let command = APDUCommand {
+            cla: 0x80,
+            ins: Instruction::GetPublicNonce.as_u8(),
+            p1: 0x00,
+            p2: 0x00,
+            data: vec![0],
+        };
+        let result = match transport.exchange(&command) {
+            Ok(result) => result,
+            Err(e) => {
+                println!("\nError: GetPublicNonce {}\n", e);
+                return;
+            },
+        };
+
+        if result.data().len() < 33 {
+            println!("\nError: 'GetPublicNonce' insufficient response! ({:?})\n", result);
+            return;
+        }
+        let public_key = RistrettoPublicKey::from_bytes(&result.data()[1..33]).unwrap();
+        println!("public_nonce: {}", public_key.to_hex());
+    }
+    println!();
+
     // BadInstruction
     sleep(Duration::from_millis(2000));
     let command = APDUCommand {
         cla: 0x80,
-        ins: 0x33, // Exit
+        ins: 0x33, // Not defined
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
     };
-    match ledger.exchange(&command) {
+    match transport.exchange(&command) {
         Ok(result) => println!("BadInstruction response ({:?})", result),
         Err(e) => println!("BadInstruction response ({})", e),
     };
@@ -248,12 +277,12 @@ fn main() {
     sleep(Duration::from_millis(2000));
     let command = APDUCommand {
         cla: 0x80,
-        ins: 0x05, // Exit
+        ins: Instruction::Exit.as_u8(),
         p1: 0x00,
         p2: 0x00,
         data: vec![0],
     };
-    match ledger.exchange(&command) {
+    match transport.exchange(&command) {
         Ok(result) => println!("Ledger device disconnected ({:?})", result),
         Err(e) => println!("Ledger device disconnected with error ({})", e),
     };
@@ -271,7 +300,6 @@ impl<M: DomainSeparation> DomainSeparatedConsensusHasher<M> {
     }
 }
 
-use digest::consts::U32;
 #[derive(Clone)]
 pub struct ConsensusHasher<D> {
     writer: WriteHashWrapper<D>,

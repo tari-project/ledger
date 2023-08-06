@@ -17,3 +17,5 @@ rand = "0.8.5"
 borsh = { version = "0.10", default-features = false }
 digest = "0.10.6"
 tari_utilities = { git = "https://github.com/tari-project/tari_utilities.git", version = "0.5", default-features = false }
+dialoguer = { version = "0.10" }
+thiserror = { version = "1.0" }
