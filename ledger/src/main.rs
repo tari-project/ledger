@@ -32,8 +32,7 @@ use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
-use digest::Update;
-use nanos_sdk::{buttons::ButtonEvent, io};
+use nanos_sdk::{buttons::ButtonEvent, io, random};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
@@ -61,6 +60,7 @@ enum Instruction {
     Sign,
     Commitment,
     GetPublicKey,
+    GetPublicNonce,
     Exit,
     BadInstruction(u8),
 }
@@ -72,7 +72,8 @@ impl From<io::ApduHeader> for Instruction {
             0x02 => Self::Sign,
             0x03 => Self::Commitment,
             0x04 => Self::GetPublicKey,
-            0x05 => Self::Exit,
+            0x05 => Self::GetPublicNonce,
+            0x06 => Self::Exit,
             other => Self::BadInstruction(other),
         }
     }
@@ -184,17 +185,20 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
 
             let raw_key = get_raw_key(path);
-            let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
-            let n = Blake2b::<U32>::new().chain(k.as_bytes()).finalize().to_vec();
-            let n = RistrettoSecretKey::from_bytes(&n).unwrap();
-            let public_key = RistrettoPublicKey::from_secret_key(&k);
-            let public_nonce = RistrettoPublicKey::from_secret_key(&n);
+            let private_key = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
+            let public_key = RistrettoPublicKey::from_secret_key(&private_key);
+
+            let mut nonce_bytes = [0u8; 32];
+            random::rand_bytes(&mut nonce_bytes);
+            let private_nonce = RistrettoSecretKey::from_bytes(&nonce_bytes).unwrap();
+            let public_nonce = RistrettoPublicKey::from_secret_key(&private_nonce);
+
             let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
                 .chain(&public_key)
                 .chain(&public_nonce)
                 .chain(challenge.bytes())
                 .finalize();
-            let signature = RistrettoSchnorr::sign_raw(&k, n, &hash).unwrap();
+            let signature = RistrettoSchnorr::sign_raw(&private_key, private_nonce, &hash).unwrap();
             let sig = signature.get_signature().as_bytes();
             let nonce = signature.get_public_nonce().as_bytes();
 
@@ -218,6 +222,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let com_factories = ExtendedPedersenCommitmentFactory::default();
             let commitment = com_factories.commit_value(&k, value);
+
             comm.append(&[1]); // version
             comm.append(commitment.as_bytes());
             ui::SingleMessage::new("Commitment... Done").show();
@@ -243,9 +248,23 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let raw_key = get_raw_key(path);
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let pk = RistrettoPublicKey::from_secret_key(&k);
+
             comm.append(&[1]); // version
             comm.append(pk.as_bytes());
             ui::SingleMessage::new("GetPublicKey... Done").show();
+            comm.reply_ok();
+        },
+        Instruction::GetPublicNonce => {
+            ui::SingleMessage::new("GetPublicNonce...").show();
+
+            let mut nonce_bytes = [0u8; 32];
+            random::rand_bytes(&mut nonce_bytes);
+            let private_nonce = RistrettoSecretKey::from_bytes(&nonce_bytes).unwrap();
+            let public_nonce = RistrettoPublicKey::from_secret_key(&private_nonce);
+
+            comm.append(&[1]); // version
+            comm.append(public_nonce.as_bytes());
+            ui::SingleMessage::new("GetPublicNonce... Done").show();
             comm.reply_ok();
         },
         Instruction::BadInstruction(val) => {
