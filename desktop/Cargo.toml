@@ -6,16 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-once_cell = { version = "1.8"}
 ledger-zondax-generic = { git = "https://github.com/Zondax/ledger-rs" }
 ledger-transport = { git = "https://github.com/Zondax/ledger-rs" }
 ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs" }
+
+tari_crypto = { version = "0.18" }
+tari_utilities = { version = "0.5.1" }
+
+once_cell = { version = "1.8"}
 futures = "0.3"
-blake2 = { version = "0.10"}
-tari_crypto = { git = "https://github.com/swvheerden/tari-crypto.git",  rev = "bd451c1d79a42510c38f73e24c6b24f88b5117ba", features = ["borsh"] }
 rand = "0.8.5"
-borsh = { version = "0.10", default-features = false }
 digest = "0.10.6"
-tari_utilities = { git = "https://github.com/tari-project/tari_utilities.git", version = "0.5", default-features = false }
+borsh = { version = "0.10", default-features = false }
+blake2 = { version = "0.10"}
 dialoguer = { version = "0.10" }
 thiserror = { version = "1.0" }

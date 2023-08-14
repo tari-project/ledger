@@ -25,14 +25,21 @@
 #![feature(alloc_error_handler)]
 
 extern crate alloc;
-use core::marker::PhantomData;
+use core::{marker::PhantomData, mem::MaybeUninit};
 
 use blake2::Blake2b;
 use borsh::{
     maybestd::io::{Result as BorshResult, Write},
     BorshSerialize,
 };
-use nanos_sdk::{buttons::ButtonEvent, io, random};
+use critical_section::RawRestoreState;
+use nanos_sdk::{
+    buttons::ButtonEvent,
+    ecc::{bip32_derive, CurvesId, Secret},
+    io,
+    io::SyscallError,
+    random,
+};
 use nanos_ui::ui;
 use tari_crypto::{
     commitment::HomomorphicCommitmentFactory,
@@ -49,6 +56,7 @@ use tari_crypto::{
 };
 
 use crate::alloc::string::{String, ToString};
+
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 /// App Version parameters
@@ -143,19 +151,47 @@ fn byte_to_hex(byte: u8) -> String {
     String::from_utf8_lossy(&hex).to_string()
 }
 
-// Get a raw key from the BIP32 path
-fn get_raw_key(path: [u32; 5]) -> [u8; 32] {
-    let mut raw_key = [0u8; 32];
-    unsafe {
-        os_perso_derive_node_bip32(
-            CurvesId::Ed25519 as u8,
-            (&path).as_ptr(),
-            (&path).len() as u32,
-            (&mut raw_key).as_mut_ptr(),
-            core::ptr::null_mut(),
-        )
+// Get a raw 32 byte key from the BIP32 path.
+// - The wrapper function for the syscall `os_perso_derive_node_bip32`, `bip32_derive`, requires a 96 byte buffer when
+//   called with `CurvesId::Ed25519` as it checks the consistency of the curve choice and key length in order to prevent
+//   the underlying syscall from panicking.
+// - The syscall `os_perso_derive_node_bip32` returns 96 bytes as:
+//     private key: 64 bytes
+//     chain: 32 bytes
+//   Example:
+//     d8a57c1be0c52e9643485e77aac56d72fa6c4eb831466c2abd2d320c82d3d14929811c598c13d431bad433e037dbd97265492cea42bc2e3aad15440210a20a2d0000000000000000000000000000000000000000000000000000000000000000
+//  - This function applies domain separated hashing to the 64 byte private key of the returned buffer to get 32
+//    uniformly distributed random bytes.
+fn get_raw_key_hash(path: &[u32]) -> Result<[u8; 32], String> {
+    let mut key = Secret::<96>::new();
+    let raw_key_64 = match bip32_derive(CurvesId::Ed25519, path, key.as_mut()) {
+        Ok(_) => {
+            let binding = &key.as_ref()[..64];
+            let raw_key_64: [u8; 64] = match binding.try_into() {
+                Ok(v) => v,
+                Err(_) => return Err("Err: 64 byte slice".to_string()),
+            };
+            raw_key_64
+        },
+        Err(_) => return Err("Err: InvalidParameter".to_string()),
     };
-    raw_key
+
+    Ok(DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("raw_key")
+        .chain(&raw_key_64)
+        .finalize())
+}
+
+fn get_raw_key(path: &[u32]) -> Result<[u8; 32], SyscallError> {
+    match get_raw_key_hash(&path) {
+        Ok(val) => Ok(val),
+        Err(e) => {
+            let mut msg = "".to_string();
+            msg.push_str("Err: raw key >>...");
+            ui::SingleMessage::new(&msg).show_and_wait();
+            ui::SingleMessage::new(&e).show();
+            Err(SyscallError::InvalidParameter.into())
+        },
+    }
 }
 
 fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Reply> {
@@ -184,7 +220,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let challenge = ArrayString::<32>::from_bytes(comm.get(offset, offset + 32));
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
 
-            let raw_key = get_raw_key(path);
+            let raw_key = get_raw_key(&path)?;
             let private_key = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let public_key = RistrettoPublicKey::from_secret_key(&private_key);
 
@@ -194,8 +230,8 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let public_nonce = RistrettoPublicKey::from_secret_key(&private_nonce);
 
             let hash = DomainSeparatedConsensusHasher::<TransactionHashDomain>::new("script_challenge")
-                .chain(&public_key)
-                .chain(&public_nonce)
+                .chain(&public_key.as_bytes())
+                .chain(&public_nonce.as_bytes())
                 .chain(challenge.bytes())
                 .finalize();
             let signature = RistrettoSchnorr::sign_raw(&private_key, private_nonce, &hash).unwrap();
@@ -218,7 +254,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             let value = u64::from_le_bytes(value_bytes);
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(b"m/44'/535348'/0'/0/0");
 
-            let raw_key = get_raw_key(path);
+            let raw_key = get_raw_key(&path)?;
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let com_factories = ExtendedPedersenCommitmentFactory::default();
             let commitment = com_factories.commit_value(&k, value);
@@ -245,7 +281,7 @@ fn handle_apdu(comm: &mut io::Comm, instruction: Instruction) -> Result<(), Repl
             bip32_path.push_str(&address_index);
             let path: [u32; 5] = nanos_sdk::ecc::make_bip32_path(bip32_path.as_bytes());
 
-            let raw_key = get_raw_key(path);
+            let raw_key = get_raw_key(&path)?;
             let k = RistrettoSecretKey::from_bytes(&raw_key).unwrap();
             let pk = RistrettoPublicKey::from_secret_key(&k);
 
@@ -409,11 +445,6 @@ impl<const N: usize> ArrayString<N> {
         core::str::from_utf8(&self.bytes[..self.len()]).unwrap()
     }
 }
-
-use core::mem::MaybeUninit;
-
-use critical_section::RawRestoreState;
-use nanos_sdk::{bindings::os_perso_derive_node_bip32, ecc::CurvesId};
 
 /// Allocator heap size
 const HEAP_SIZE: usize = 1024 * 26;
